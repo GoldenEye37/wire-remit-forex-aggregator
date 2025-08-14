@@ -39,3 +39,20 @@ class ExchangeRateClient:
         except Exception as e:
             logger.exception(f"Error fetching rates from ExchangeRate API: {e}")
             raise e
+
+    def health_check(self, base_currency: str = "USD") -> dict:
+        """
+        Health check for ExchangeRate API.
+        Returns dict with status and details.
+        """
+        url = f"{self.BASE_URL}/{self.api_key}/latest/{base_currency}"
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("result") == "success":
+                return {"status": True, "details": "ExchangeRate API reachable and returned success."}
+            return {"status": False, "details": f"ExchangeRate API error: {data}"}
+        except Exception as e:
+            logger.error(f"ExchangeRate API health check failed: {e}")
+            return {"status": False, "details": str(e)}

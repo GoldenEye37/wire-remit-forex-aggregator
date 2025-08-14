@@ -48,3 +48,18 @@ class PolygonClient:
         except Exception as e:
             logger.exception(f"Error fetching conversion from Polygon: {e}")
             raise e
+
+    def health_check(self) -> dict:
+        """
+        Health check for Polygon API.
+        Returns dict with status and details.
+        """
+        try:
+            # Use a common currency pair for health check
+            response = self.client.get_real_time_currency_conversion("USD", "EUR", amount=1, precision=2)
+            if response.get("status") == "success":
+                return {"status": True, "details": "Polygon API reachable and returned success."}
+            return {"status": False, "details": f"Polygon API error: {response}"}
+        except Exception as e:
+            logger.error(f"Polygon API health check failed: {e}")
+            return {"status": False, "details": str(e)}

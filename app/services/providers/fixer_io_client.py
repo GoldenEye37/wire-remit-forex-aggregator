@@ -37,3 +37,20 @@ class FixerIOClient:
         except Exception as e:
             logger.exception(f"Error fetching rates from Fixer.io: {e}")
             raise e
+
+    def health_check(self) -> dict:
+        """
+        Health check for Fixer.io API.
+        Returns dict with status and details.
+        """
+        params = {"access_key": self.api_key}
+        try:
+            response = requests.get(self.BASE_URL, params=params, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("success"):
+                return {"status": True, "details": "Fixer.io API reachable and returned success."}
+            return {"status": False, "details": f"Fixer.io API error: {data}"}
+        except Exception as e:
+            logger.error(f"Fixer.io health check failed: {e}")
+            return {"status": False, "details": str(e)}
