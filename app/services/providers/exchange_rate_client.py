@@ -13,7 +13,7 @@ class ExchangeRateClient(BaseProviderClient):
     def __init__(self):
         self.api_key = app.config["EXCHANGE_RATE_API_KEY"]
 
-    def get_latest_rates(self, base_currency: str) -> dict:
+    def get_rates(self, base_currency: str) -> dict:
         """
         Fetch latest exchange rates for the given base currency.
         Returns the parsed JSON response or raises an exception on error.

@@ -13,7 +13,7 @@ class FixerIOClient(BaseProviderClient):
     def __init__(self):
         self.api_key = app.config["FIXER_API_KEY"]
 
-    def get_latest_rates(self) -> dict:
+    def get_rates(self) -> dict:
         """
         Fetch latest exchange rates from Fixer.io.
         The base currency is always EUR.

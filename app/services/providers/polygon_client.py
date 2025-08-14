@@ -11,7 +11,7 @@ class PolygonClient(BaseProviderClient):
     def __init__(self):
         self.client = RESTClient(app.config["POLYGON_API_KEY"])
 
-    def get_real_time_currency_conversion(
+    def get_rates(
         self,
         from_currency: str,
         to_currency: str,
