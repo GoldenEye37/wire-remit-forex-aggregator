@@ -5,8 +5,9 @@ from flask import Flask
 from loguru import logger
 
 from config import Config
+
 from .extensions import db
-from .api import auth, rates, admin
+
 
 def create_app():
     app = Flask(__name__)
@@ -17,14 +18,14 @@ def create_app():
     db.init_app(app)
 
     # blueprints
+    from flask import Blueprint
+
+    from .api.admin import admin_bp
     from .api.auth import auth_bp
     from .api.rates import rates_bp
-    from .api.admin import admin_bp
 
-    from flask import Blueprint
-    
-    api_v1 = Blueprint('api_v1', __name__, url_prefix='/api/v1.0')
-    
+    api_v1 = Blueprint("api_v1", __name__, url_prefix="/api/v1.0")
+
     api_v1.register_blueprint(auth_bp)
     api_v1.register_blueprint(rates_bp)
     api_v1.register_blueprint(admin_bp)

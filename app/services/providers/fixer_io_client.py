@@ -1,8 +1,9 @@
 # Fixer.io client
 import requests
+from loguru import logger
+
 import app
 
-from loguru import logger
 
 class FixerIOClient:
     BASE_URL = "http://data.fixer.io/api/latest"

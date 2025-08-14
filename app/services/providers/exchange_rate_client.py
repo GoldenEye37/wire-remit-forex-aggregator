@@ -1,8 +1,9 @@
-# Exchange Rate API Client 
+# Exchange Rate API Client
 import requests
+from loguru import logger  # Fixed typo
+
 import app
 
-from loguru import logger  # Fixed typo
 
 class ExchangeRateClient:
     BASE_URL = "https://v6.exchangerate-api.com/v6"
@@ -37,4 +38,4 @@ class ExchangeRateClient:
             return response
         except Exception as e:
             logger.exception(f"Error fetching rates from ExchangeRate API: {e}")
-            raise e 
+            raise e

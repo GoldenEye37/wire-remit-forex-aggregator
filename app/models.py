@@ -1,6 +1,8 @@
 
-from .extensions import db
 from sqlalchemy.sql import func
+
+from .extensions import db
+
 
 class Provider(db.Model):
 	__tablename__ = 'providers'
@@ -26,7 +28,8 @@ class CurrencyPair(db.Model):
 	rates = db.relationship('Rate', backref='currency_pair', lazy=True)
 	aggregated_rates = db.relationship('AggregatedRate', backref='currency_pair', lazy=True)
 
-    __table_args__ = (db.UniqueConstraint('base_currency', 'target_currency', name='_base_target_uc'),)
+	__table_args__ = (db.UniqueConstraint('base_currency', 'target_currency', name='_base_target_uc'),)
+
 
 class Rate(db.Model):
 	__tablename__ = 'rates'
@@ -59,15 +62,15 @@ class AggregatedRate(db.Model):
 	aggregated_at = db.Column(db.DateTime, nullable=False)
 	expires_at = db.Column(db.DateTime, nullable=False)
 	created_at = db.Column(db.DateTime, server_default=func.now())
-	
-    __table_args__ = (
+
+	__table_args__ = (
 		db.Index('idx_aggregated_pair_time', 'currency_pair_id', 'aggregated_at'),
 	)
 
 
 class User(db.Model):
 	__tablename__ = 'users'
-    
+
 	id = db.Column(db.Integer, primary_key=True)
 	first_name = db.Column(db.String(100), nullable=False)
 	last_name = db.Column(db.String(100), nullable=False)

@@ -1,15 +1,21 @@
 # Polygon API client
-import app
-
-from polygon import RESTClient
 from loguru import logger
+from polygon import RESTClient
+
+import app
 
 
 class PolygonClient:
     def __init__(self):
         self.client = RESTClient(app.config["POLYGON_API_KEY"])
 
-    def get_real_time_currency_conversion(self, from_currency: str, to_currency: str, amount: float = 1.0, precision: int = 2) -> dict:
+    def get_real_time_currency_conversion(
+        self,
+        from_currency: str,
+        to_currency: str,
+        amount: float = 1.0,
+        precision: int = 2,
+    ) -> dict:
         """
         Fetch real-time currency conversion from Polygon.
         Returns a standardized response dict.

@@ -1,6 +1,6 @@
-[tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
+[lint]
 select = [
     "E",    # pycodestyle errors
     "F",    # pyflakes
@@ -12,10 +12,10 @@ select = [
 ignore = [
     "E501", # line too long (handled by black)
 ]
+
 exclude = [
     ".venv",
     "migrations",
     "__pycache__",
     "tests",
 ]
-fix = true
