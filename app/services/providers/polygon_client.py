@@ -40,7 +40,7 @@ class PolygonClient(BaseProviderClient):
                 "conversion_bid": response.get("last", {}).get("bid"),
                 "converted_amount": response.get("converted"),
                 "initial_amount": response.get("initialAmount"),
-                "timestamp": response.get("last", {}).get("timestamp"),
+                "last_update_utc": response.get("last", {}).get("timestamp"),
                 "symbol": response.get("symbol"),
                 "status": response.get("status"),
                 "provider": "polygon",

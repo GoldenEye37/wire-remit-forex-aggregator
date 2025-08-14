@@ -1,1 +1,1 @@
-# Provider service
+# Provider service - for provider management

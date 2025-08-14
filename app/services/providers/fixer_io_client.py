@@ -31,10 +31,10 @@ class FixerIOClient(BaseProviderClient):
                 raise ValueError(f"API error: {data}")
             logger.info("Fixer.io API request successful")
             return {
-                "base": data["base"],
+                "base_code": data["base"],
                 "date": data["date"],
-                "rates": data["rates"],
-                "timestamp": data["timestamp"],
+                "conversion_rates": data["rates"],
+                "last_update_utc": data["timestamp"],
             }
         except Exception as e:
             logger.exception(f"Error fetching rates from Fixer.io: {e}")
