@@ -4,8 +4,10 @@ from polygon import RESTClient
 
 import app
 
+from .base_provider import BaseProviderClient
 
-class PolygonClient:
+
+class PolygonClient(BaseProviderClient):
     def __init__(self):
         self.client = RESTClient(app.config["POLYGON_API_KEY"])
 

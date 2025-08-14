@@ -4,8 +4,10 @@ from loguru import logger  # Fixed typo
 
 import app
 
+from .base_provider import BaseProviderClient
 
-class ExchangeRateClient:
+
+class ExchangeRateClient(BaseProviderClient):
     BASE_URL = "https://v6.exchangerate-api.com/v6"
 
     def __init__(self):

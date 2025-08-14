@@ -4,8 +4,10 @@ from loguru import logger
 
 import app
 
+from .base_provider import BaseProviderClient
 
-class FixerIOClient:
+
+class FixerIOClient(BaseProviderClient):
     BASE_URL = "http://data.fixer.io/api/latest"
 
     def __init__(self):
