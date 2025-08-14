@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "C90",  # mccabe complexity
+]
+ignore = [
+    "E501", # line too long (handled by black)
+]
+exclude = [
+    ".venv",
+    "migrations",
+    "__pycache__",
+    "tests",
+]
+fix = true
