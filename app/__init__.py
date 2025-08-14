@@ -4,14 +4,16 @@ import os
 from flask import Flask
 from loguru import logger
 
-# from app.extensions import db
+from config import Config
+from .extensions import db
 from .api import auth, rates, admin
 
 def create_app():
     app = Flask(__name__)
 
     logger.info(f"MY IP: {os.environ.get('DB_HOST')}")
-    # app.config.from_object(Config)
+
+    app.config.from_object(Config)
     # db.init_app(app)
 
     # blueprints
