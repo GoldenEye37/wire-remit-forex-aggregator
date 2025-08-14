@@ -1,12 +1,8 @@
 from flask_migrate import Migrate
-from app import create_app, db
 from app import create_app
+from app.extensions import db
 
 app = create_app()
-
-cache = Cache(app)
-
-request_middleware(app)
 
 migrate = Migrate(app, db)
 

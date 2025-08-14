@@ -14,7 +14,7 @@ def create_app():
     logger.info(f"MY IP: {os.environ.get('DB_HOST')}")
 
     app.config.from_object(Config)
-    # db.init_app(app)
+    db.init_app(app)
 
     # blueprints
     from .api.auth import auth_bp
