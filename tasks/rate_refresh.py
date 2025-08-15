@@ -4,7 +4,7 @@ from app.services.rate_processor import RateProcessorService
 from tasks.celery_app import celery
 
 
-@celery.task()
+@celery.task(name="tasks.rate_refresh.refresh_rates", bind=True)
 def refresh_rates():
     """
     Fetch rates from all configured providers for active currency pairs,
