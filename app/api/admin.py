@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from loguru import logger
 
 from app.services.currency_service import CurrencyService
+from app.services.user_service import UserService
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -28,13 +29,15 @@ def add_currency_pair():
         if not data:
             return jsonify({"error": "Request body is required"}), 400
 
-        base_currency = data.get('base_currency')
-        target_currency = data.get('target_currency')
+        base_currency = data.get("base_currency")
+        target_currency = data.get("target_currency")
 
         if not base_currency or not target_currency:
-            return jsonify({"error": "base_currency and target_currency are required"}), 400
+            return jsonify(
+                {"error": "base_currency and target_currency are required"}
+            ), 400
 
-        markup_percentage = data.get('markup_percentage', 0.1000)
+        markup_percentage = data.get("markup_percentage", 0.1000)
 
         result = CurrencyService.add_currency_pair(
             base_currency=base_currency,
@@ -43,10 +46,7 @@ def add_currency_pair():
         )
 
         if result["success"]:
-            return jsonify({
-                "message": result["message"],
-                "pair": result["pair"]
-            }), 201
+            return jsonify({"message": result["message"], "pair": result["pair"]}), 201
         else:
             return jsonify({"error": result["message"]}), 400
 
@@ -64,10 +64,10 @@ def update_all_pairs_markup():
     try:
         data = request.get_json()
 
-        if not data or 'markup_percentage' not in data:
+        if not data or "markup_percentage" not in data:
             return jsonify({"error": "markup_percentage is required"}), 400
 
-        markup_percentage = data.get('markup_percentage')
+        markup_percentage = data.get("markup_percentage")
 
         if not isinstance(markup_percentage, int | float):
             return jsonify({"error": "markup_percentage must be a number"}), 400
@@ -75,11 +75,13 @@ def update_all_pairs_markup():
         result = CurrencyService.update_all_pairs_markup(markup_percentage)
 
         if result["success"]:
-            return jsonify({
-                "message": result["message"],
-                "updated_count": result["updated_count"],
-                "new_markup": result["new_markup"]
-            }), 200
+            return jsonify(
+                {
+                    "message": result["message"],
+                    "updated_count": result["updated_count"],
+                    "new_markup": result["new_markup"],
+                }
+            ), 200
         else:
             return jsonify({"error": result["message"]}), 400
 
@@ -87,3 +89,50 @@ def update_all_pairs_markup():
         logger.error(f"Update all pairs markup error: {e}")
         return jsonify({"error": "Failed to update markup for all pairs"}), 500
 
+
+@admin_bp.route("/users", methods=["POST"])
+def create_admin_user():
+    """
+    Create a new admin user.
+    Expected JSON: {
+        "email": "admin@example.com",
+        "password": "securepassword123",
+        "first_name": "John",  # optional
+        "last_name": "Doe"     # optional
+    }
+    """
+    try:
+        # auth_header = request.headers.get('Authorization')
+        # token = auth_header.split(' ')[1]
+        # auth_service = AuthService()
+        # current_user = auth_service.get_user_from_token(token)
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Request body is required"}), 400
+
+        email = data.get("email")
+        password = data.get("password")
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+
+        if not email or not password:
+            return jsonify({"error": "Email and password are required"}), 400
+
+        result = UserService.create_admin_user(
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            created_by_user_id=1,  # HARD CODED for now
+        )
+
+        if result["success"]:
+            return jsonify({"message": result["message"], "user": result["user"]}), 201
+        else:
+            return jsonify({"error": result["message"]}), 400
+
+    except Exception as e:
+        logger.error(f"Create admin user error: {e}")
+        return jsonify({"error": "Failed to create admin user"}), 500
