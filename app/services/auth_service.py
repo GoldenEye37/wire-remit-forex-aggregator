@@ -1,8 +1,10 @@
+import re
 from datetime import UTC, datetime, timedelta
 
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from email_validator import EmailNotValidError, validate_email
 from flask import current_app as app
 from loguru import logger
 
@@ -64,6 +66,30 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error verifying JWT: {e}")
             return None
+
+    @staticmethod
+    def validate_email_address(email: str) -> bool:
+        # Validate email
+        try:
+            valid = validate_email(email)
+            email = valid.email
+            return True
+        except EmailNotValidError:
+            return False
+
+    @staticmethod
+    def validate_password_strength(password):
+        if len(password) < 8:
+            return False, "Password must be at least 8 characters long"
+        if not re.search(r"[A-Z]", password):
+            return False, "Password must contain at least one uppercase letter"
+        if not re.search(r"[a-z]", password):
+            return False, "Password must contain at least one lowercase letter"
+        if not re.search(r"\d", password):
+            return False, "Password must contain at least one digit"
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+            return False, "Password must contain at least one special character"
+        return True, ""
 
     def register_user(
         self, email: str, password: str, first_name: str = None, last_name: str = None
