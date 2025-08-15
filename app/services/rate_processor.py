@@ -3,19 +3,23 @@
 This service is responsible for processing and aggregating forex rates from various providers.
 """
 
+from collections import defaultdict
 from datetime import timedelta
+from decimal import ROUND_HALF_UP, Decimal, getcontext  # added
 
 from loguru import logger
 from sqlalchemy import func
 
-from app import db
 from app.models import AggregatedRate, CurrencyPair, Rate
 from app.services.rate_fetcher import RateFetcherService
+
+# from app.extenstion import db
+from run import db
 
 
 class RateProcessorService:
     def __init__(self):
-        self.rate_fetcher = RateFetcherService()
+        self.rate_fetcher = None
 
     def process_rates_for_currencies(self):
         """
@@ -29,11 +33,11 @@ class RateProcessorService:
         exchange_rates_api_results = self._process_exchange_rate_client(currencies)
 
         # fetch rate from polygon api
-        polygon_results = self._process_polygon_client(currencies)
+        # polygon_results = self._process_polygon_client(currencies)
 
         provider_results.append(
             {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
-            {"source": "polygon", "rate_data": polygon_results},
+            # {"source": "polygon", "rate_data": polygon_results},
         )
 
         # Clean and save rates to the database
@@ -44,7 +48,7 @@ class RateProcessorService:
         Fetch currency pairs from the database and process rates for each pair.
         """
         currency_pairs = CurrencyPair.query.filter_by(is_active=True).all()
-
+        logger.debug(f"------- Fetched {len(currency_pairs)} currency pairs\n{currency_pairs}")
         return currency_pairs
 
     def _group_currency_pairs_by_base(self, currency_pairs):
@@ -58,7 +62,7 @@ class RateProcessorService:
         "ZAR": ["GBP"]
         }
         """
-        logger.debug("Grouping currency pairs by base currency.")
+        logger.debug("--- Grouping currency pairs by base currency.")
         grouped = {}
 
         for pair in currency_pairs:
@@ -66,7 +70,7 @@ class RateProcessorService:
                 grouped[pair.base_currency] = []
             grouped[pair.base_currency].append(pair.target_currency)
 
-        logger.debug(f"Grouped currency pairs: {grouped}")
+        logger.debug(f"---Grouped currency pairs: {grouped}")
         return grouped
 
     def _process_exchange_rate_client(self, currencies) -> dict:
@@ -88,23 +92,23 @@ class RateProcessorService:
             ]
         }
         """
-        logger.debug("Processing rates using Exchange Rate API.")
+        logger.debug("------> Processing rates using Exchange Rate API. <------")
         grouped_currency_pairs = self._group_currency_pairs_by_base(currencies)
-        logger.debug(
-            f"Grouped currency pairs for Exchange Rate API: {grouped_currency_pairs}"
-        )
 
         # process rates for each base currency
         results = {}
         for base_currency, target_currencies in grouped_currency_pairs.items():
             logger.info(
-                f"Fetching rates for base currency {base_currency} using ExchangeRateClient"
+                f" ---- Fetching rates for base currency {base_currency}"
+            )
+            self.rate_fetcher = RateFetcherService(
+                provider_names=["exchange_rate"]
             )
             rate_data = self.rate_fetcher.fetch_rates(
-                provider_name="exchange_rate", base_currency=base_currency
+                base_currency=base_currency
             )
             logger.debug(
-                f"Fetched rates for base currency {base_currency}: {rate_data}"
+                f"Fetched rates for base currency {base_currency}:\n\n {rate_data}"
             )
 
             # extract rate for each target currency
@@ -201,8 +205,9 @@ class RateProcessorService:
                 source = provider_result["source"]
                 rate_data = provider_result["rate_data"]
 
+                grouped_rates_by_pair_id: dict[int, list[Rate]] = defaultdict(list)
+
                 for base_currency, rates in rate_data.items():
-                    rates_to_aggregate = []
                     for rate in rates:
                         # Find the corresponding currency pair
                         currency_pair = next(
@@ -222,55 +227,77 @@ class RateProcessorService:
                             continue
 
                         # Create a new Rate object
+                        rate_value = self._to_decimal(rate["rate"])
+
                         new_rate = Rate(
                             currency_pair_id=currency_pair.id,
                             # provider_id=source,  # no provider id at the moment
-                            buy_rate=rate["rate"],
-                            sell_rate=rate["rate"],
-                            fetched_at=rate["fetched_at"],
+                            buy_rate=rate_value,
+                            sell_rate=rate_value,
+                            fetched_at=rate["fetched_at"], #TODO use timezone-aware datetime (UTC)
                             created_at=func.now(),
                         )
 
-                        rates_to_aggregate.append(new_rate)
-
-                        # Save to the database
                         db.session.add(new_rate)
+                        grouped_rates_by_pair_id[currency_pair.id].append(new_rate)
+
                         logger.info(
                             f"Saved rate for {base_currency}-{rate['pair']} from {source}."
                         )
 
-                    # Aggregate rates for the currency pair
-                    self._aggregate_rates(rates_to_aggregate, len(provider_results))
+                    db.session.flush()  # Flush to get IDs for the new Rate objects
 
-            # Commit the transaction
+                    # Aggregate rates for the currency pair
+                    provider_count = len(provider_results)
+                    for currency_pair_id, rates_for_pair in grouped_rates_by_pair_id.items():
+                        self._aggregate_rates(currency_pair_id, rates_for_pair, provider_count)
+
             db.session.commit()
             logger.debug("Rates successfully saved to the database.")
 
         except Exception as e:
+            import traceback
             logger.error(f"Failed to save rates to the database: {e}")
+            logger.error(traceback.format_exc())
             db.session.rollback()
 
-    def _aggregate_rates(self, rates: list[Rate], provider_count: int):
+    def _aggregate_rates(self, currency_pair_id: int, rates: list[Rate], provider_count: int):
         """
         Aggregate rates for the currency pair and save to the aggregation table.
         """
+        logger.info(f"Aggregating for currency_pair_id={currency_pair_id}; rates={rates}")
         if not rates:
             logger.warning("No rates available for aggregation.")
             return
 
-        currency_pair = rates[0].currency_pair
+
+        currency_pair = CurrencyPair.query.get(currency_pair_id) # avoiding pending relations
+        if not currency_pair:
+            logger.error(f"CurrencyPair id={currency_pair_id} not found. Skipping aggregation.")
+            return
 
         logger.debug(
             f"Aggregating rates for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
         )
 
         # Calculate average buy and sell rates
-        average_buy_rate = sum(rate.buy_rate for rate in rates) / len(rates)
-        average_sell_rate = sum(rate.sell_rate for rate in rates) / len(rates)
+        buy_values = [self._to_decimal(r.buy_rate) for r in rates]
+        sell_values = [self._to_decimal(r.sell_rate) for r in rates]
 
-        # Apply markup
-        final_buy_rate = average_buy_rate * (1 + currency_pair.markup_percentage)
-        final_sell_rate = average_sell_rate * (1 - currency_pair.markup_percentage)
+        count_dec = Decimal(len(buy_values))
+        average_buy_rate = (sum(buy_values) / count_dec)
+        average_sell_rate = (sum(sell_values) / count_dec)
+
+        markup = self._to_decimal(currency_pair.markup_percentage or 0)
+        one = Decimal("1")
+
+        # Optional: set precision and quantize to 8 dp
+        getcontext().prec = 28
+        q = Decimal("0.00000001")
+
+        final_buy_rate = (average_buy_rate * (one + markup)).quantize(q, rounding=ROUND_HALF_UP)
+        final_sell_rate = (average_sell_rate * (one - markup)).quantize(q, rounding=ROUND_HALF_UP)
+
 
         # Create a new AggregatedRate object
         aggregated_rate = AggregatedRate(
@@ -291,3 +318,16 @@ class RateProcessorService:
         logger.info(
             f"Aggregated rates saved for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
         )
+
+    @staticmethod
+    def _to_decimal(value) -> Decimal:
+        """
+        Safely coerce numbers (float/int/str/Decimal) to Decimal.
+        """
+        if isinstance(value, Decimal):
+            return value
+        if isinstance(value, int | float):  # Updated to use `X | Y` syntax
+            return Decimal(str(value))
+        if isinstance(value, str):
+            return Decimal(value)
+        return Decimal(str(value))
