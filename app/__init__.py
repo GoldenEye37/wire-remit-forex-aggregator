@@ -15,10 +15,14 @@ def create_app():
     logger.info(f"MY IP: {os.environ.get('DB_HOST')}")
 
     app.config.from_object(Config)
+
     db.init_app(app)
 
+    # register models
     # blueprints
     from flask import Blueprint
+
+    from app import models
 
     from .api.admin import admin_bp
     from .api.auth import auth_bp
