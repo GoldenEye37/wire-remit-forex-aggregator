@@ -1,8 +1,7 @@
 # Fixer.io client
 import requests
+from flask import current_app as app
 from loguru import logger
-
-import app
 
 from .base_provider import BaseProviderClient
 

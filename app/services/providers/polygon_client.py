@@ -1,8 +1,7 @@
 # Polygon API client
+from flask import current_app as app
 from loguru import logger
 from polygon import RESTClient
-
-import app
 
 from .base_provider import BaseProviderClient
 
