@@ -2,12 +2,14 @@
 from flask import Blueprint, jsonify
 from loguru import logger
 
+from app.decorators import require_jwt
 from app.models import AggregatedRate, CurrencyPair
 
 rates_bp = Blueprint("rates", __name__, url_prefix="/rates")
 
 
 @rates_bp.route("/", methods=["GET"])
+@require_jwt
 def get_rates():
     try:
         # Fetch all aggregated rates
@@ -19,6 +21,7 @@ def get_rates():
 
 
 @rates_bp.route("/rates/<string:base_or_target>", methods=["GET"])
+@require_jwt
 def get_rates_for_currency(base_or_target):
     try:
         error = CurrencyPair.validate_currency(base_or_target)

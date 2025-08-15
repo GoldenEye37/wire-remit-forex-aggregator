@@ -1,7 +1,8 @@
 # Admin API
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 from loguru import logger
 
+from app.decorators import require_jwt_admin
 from app.services.currency_service import CurrencyService
 from app.services.user_service import UserService
 
@@ -9,11 +10,18 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
 @admin_bp.route("/", methods=["GET"])
+@require_jwt_admin
 def hello_admin():
-    return "Hello, Admin!"
+    return jsonify(
+        {
+            "message": f"Hello, Admin {g.current_user.email}!",
+            "user": g.current_user.to_dict(),
+        }
+    )
 
 
 @admin_bp.route("/currency-pairs", methods=["POST"])
+@require_jwt_admin
 def add_currency_pair():
     """
     Add a new currency pair.
@@ -56,6 +64,7 @@ def add_currency_pair():
 
 
 @admin_bp.route("/currency-pairs/markup", methods=["PUT"])
+@require_jwt_admin
 def update_all_pairs_markup():
     """
     Update markup for all currency pairs.
@@ -91,6 +100,7 @@ def update_all_pairs_markup():
 
 
 @admin_bp.route("/users", methods=["POST"])
+@require_jwt_admin
 def create_admin_user():
     """
     Create a new admin user.
@@ -102,10 +112,7 @@ def create_admin_user():
     }
     """
     try:
-        # auth_header = request.headers.get('Authorization')
-        # token = auth_header.split(' ')[1]
-        # auth_service = AuthService()
-        # current_user = auth_service.get_user_from_token(token)
+        current_user = g.current_user
 
         data = request.get_json()
 
@@ -125,7 +132,7 @@ def create_admin_user():
             password=password,
             first_name=first_name,
             last_name=last_name,
-            created_by_user_id=1,  # HARD CODED for now
+            created_by_user_id=current_user.id,
         )
 
         if result["success"]:
