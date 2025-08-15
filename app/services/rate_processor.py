@@ -3,9 +3,13 @@
 This service is responsible for processing and aggregating forex rates from various providers.
 """
 
-from loguru import logger
+from datetime import timedelta
 
-from app.models import CurrencyPair
+from loguru import logger
+from sqlalchemy import func
+
+from app import db
+from app.models import AggregatedRate, CurrencyPair, Rate
 from app.services.rate_fetcher import RateFetcherService
 
 
@@ -34,9 +38,6 @@ class RateProcessorService:
 
         # Clean and save rates to the database
         self._save_rates(currencies, provider_results)
-
-        # Perform aggregation
-        self._aggregate_rates(currencies, provider_results)
 
     def _get_currencies(self):
         """
@@ -102,7 +103,9 @@ class RateProcessorService:
             rate_data = self.rate_fetcher.fetch_rates(
                 provider_name="exchange_rate", base_currency=base_currency
             )
-            logger.debug(f"Fetched rates for base currency {base_currency}: {rate_data}")
+            logger.debug(
+                f"Fetched rates for base currency {base_currency}: {rate_data}"
+            )
 
             # extract rate for each target currency
             results[base_currency] = []
@@ -184,16 +187,107 @@ class RateProcessorService:
         logger.debug(f"Processed Polygon API results: {results}")
         return results
 
-    def _save_rates(self, provider_results):
+    def _save_rates(self, currencies: list[CurrencyPair], provider_results: list[dict]):
         """
         Save cleaned rates to the database.
+        Args:
+            currencies (list): List of CurrencyPair objects.
+            provider_results (list): List of provider results containing rate data.
         """
-        # Skeleton logic for saving rates
-        pass
+        logger.debug("Saving rates to the database.")
 
-    def _aggregate_rates(self, currency_pair):
+        try:
+            for provider_result in provider_results:
+                source = provider_result["source"]
+                rate_data = provider_result["rate_data"]
+
+                for base_currency, rates in rate_data.items():
+                    rates_to_aggregate = []
+                    for rate in rates:
+                        # Find the corresponding currency pair
+                        currency_pair = next(
+                            (
+                                pair
+                                for pair in currencies
+                                if pair.base_currency == base_currency
+                                and pair.target_currency == rate["pair"]
+                            ),
+                            None,
+                        )
+
+                        if not currency_pair:
+                            logger.warning(
+                                f"Currency pair {base_currency}-{rate['pair']} not found in the database."
+                            )
+                            continue
+
+                        # Create a new Rate object
+                        new_rate = Rate(
+                            currency_pair_id=currency_pair.id,
+                            # provider_id=source,  # no provider id at the moment
+                            buy_rate=rate["rate"],
+                            sell_rate=rate["rate"],
+                            fetched_at=rate["fetched_at"],
+                            created_at=func.now(),
+                        )
+
+                        rates_to_aggregate.append(new_rate)
+
+                        # Save to the database
+                        db.session.add(new_rate)
+                        logger.info(
+                            f"Saved rate for {base_currency}-{rate['pair']} from {source}."
+                        )
+
+                    # Aggregate rates for the currency pair
+                    self._aggregate_rates(rates_to_aggregate, len(provider_results))
+
+            # Commit the transaction
+            db.session.commit()
+            logger.debug("Rates successfully saved to the database.")
+
+        except Exception as e:
+            logger.error(f"Failed to save rates to the database: {e}")
+            db.session.rollback()
+
+    def _aggregate_rates(self, rates: list[Rate], provider_count: int):
         """
         Aggregate rates for the currency pair and save to the aggregation table.
         """
-        # Skeleton logic for aggregation
-        pass
+        if not rates:
+            logger.warning("No rates available for aggregation.")
+            return
+
+        currency_pair = rates[0].currency_pair
+
+        logger.debug(
+            f"Aggregating rates for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
+        )
+
+        # Calculate average buy and sell rates
+        average_buy_rate = sum(rate.buy_rate for rate in rates) / len(rates)
+        average_sell_rate = sum(rate.sell_rate for rate in rates) / len(rates)
+
+        # Apply markup
+        final_buy_rate = average_buy_rate * (1 + currency_pair.markup_percentage)
+        final_sell_rate = average_sell_rate * (1 - currency_pair.markup_percentage)
+
+        # Create a new AggregatedRate object
+        aggregated_rate = AggregatedRate(
+            currency_pair_id=currency_pair.id,
+            average_buy_rate=average_buy_rate,
+            average_sell_rate=average_sell_rate,
+            final_buy_rate=final_buy_rate,
+            final_sell_rate=final_sell_rate,
+            markup_percentage=currency_pair.markup_percentage,
+            provider_count=provider_count,
+            aggregated_at=func.now(),
+            expires_at=func.now() + timedelta(hours=1),
+            created_at=func.now(),
+        )
+
+        # Save to the database
+        db.session.add(aggregated_rate)
+        logger.info(
+            f"Aggregated rates saved for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
+        )
