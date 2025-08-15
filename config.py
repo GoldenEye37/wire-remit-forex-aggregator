@@ -27,7 +27,10 @@ class Config:
     FIXER_API_KEY = os.environ.get("FIXER_API_KEY")
     POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
 
-
     # CELERY CONFIGS
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
     CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND")
+
+    # JWT Config
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-key-change-in-production")
+    JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))

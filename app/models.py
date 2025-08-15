@@ -321,8 +321,22 @@ class User(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
+    phone_number = db.Column(db.String(20), nullable=False)
     password_hash = db.Column(db.Text, nullable=False)
     role = db.Column(db.String(50), default="customer")
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, server_default=func.now())
     last_login = db.Column(db.DateTime)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "email": self.email,
+            "phone_number": self.phone_number,
+            "role": self.role,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+        }
