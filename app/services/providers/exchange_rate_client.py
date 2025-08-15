@@ -1,8 +1,7 @@
 # Exchange Rate API Client
 import requests
+from flask import current_app as app
 from loguru import logger  # Fixed typo
-
-import app
 
 from .base_provider import BaseProviderClient
 

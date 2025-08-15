@@ -23,9 +23,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Exchange Rate API Clients
-    EXCHANGE_RATE_API_CLIENT = os.environ.get("EXCHANGE_RATE_API_CLIENT")
-    FIXER_IO_CLIENT = os.environ.get("FIXER_IO_CLIENT")
-    POLYGON_CLIENT = os.environ.get("POLYGON_CLIENT")
+    EXCHANGE_RATE_API_KEY = os.environ.get("EXCHANGE_RATE_API_KEY")
+    FIXER_API_KEY = os.environ.get("FIXER_API_KEY")
+    POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
 
 
     # CELERY CONFIGS
