@@ -24,8 +24,12 @@ class RateProcessorService:
         # fetch rate from exchange rates api
         exchange_rates_api_results = self._process_exchange_rate_client(currencies)
 
+        # fetch rate from polygon api
+        polygon_results = self._process_polygon_client(currencies)
+
         provider_results.append(
-            {"source": "exchange_rates_api", "data": exchange_rates_api_results}
+            {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
+            {"source": "polygon", "rate_data": polygon_results},
         )
 
         # Clean and save rates to the database
@@ -95,24 +99,24 @@ class RateProcessorService:
             logger.info(
                 f"Fetching rates for base currency {base_currency} using ExchangeRateClient"
             )
-            rates = self.rate_fetcher.fetch_rates(
+            rate_data = self.rate_fetcher.fetch_rates(
                 provider_name="exchange_rate", base_currency=base_currency
             )
-            logger.debug(f"Fetched rates for base currency {base_currency}: {rates}")
+            logger.debug(f"Fetched rates for base currency {base_currency}: {rate_data}")
 
             # extract rate for each target currency
             results[base_currency] = []
             for target_currency in target_currencies:
-                if target_currency in rates["conversion_rates"]:
+                if target_currency in rate_data["conversion_rates"]:
                     results[base_currency].append(
                         {
                             "pair": target_currency,
-                            "rate": rates["conversion_rates"][target_currency],
-                            "fetched_at": rates["last_update_utc"],
+                            "rate": rate_data["conversion_rates"][target_currency],
+                            "fetched_at": rate_data["last_update_utc"],
                         }
                     )
                     logger.debug(
-                        f"Mapped rate for {base_currency}-{target_currency}: {rates['conversion_rates'][target_currency]}"
+                        f"Mapped rate for {base_currency}-{target_currency}: {rate_data['conversion_rates'][target_currency]}"
                     )
                 else:
                     logger.warning(
@@ -120,6 +124,64 @@ class RateProcessorService:
                     )
 
         logger.debug(f"Processed Exchange Rate API results: {results}")
+        return results
+
+    def _process_polygon_client(self, currencies) -> dict:
+        """
+        Process rates for Polygon API.
+
+        result:
+        {
+            "USD": [
+                {
+                    "pair": "ZAR",
+                    "rate": "<rate>",
+                    "fetched_at": "<timestamp_from_provider>"
+                },
+                {
+                    "pair": "GBP",
+                    "rate": "<rate>",
+                    "fetched_at": "<timestamp_from_provider>"
+                }
+            ]
+        }
+        """
+        logger.debug("Processing rates using Polygon API.")
+        results = {}
+
+        for currency_pair in currencies:
+            base_currency = currency_pair.base_currency
+            target_currency = currency_pair.target_currency
+
+            logger.info(
+                f"Fetching rate for {base_currency}-{target_currency} using PolygonClient"
+            )
+            try:
+                rate_data = self.rate_fetcher.fetch_rates(
+                    provider_name="polygon",
+                    from_currency=base_currency,
+                    to_currency=target_currency,
+                )
+                logger.debug(
+                    f"Fetched rate for {base_currency}-{target_currency}: {rate_data}"
+                )
+
+                if base_currency not in results:
+                    results[base_currency] = []
+
+                results[base_currency].append(
+                    {
+                        "pair": target_currency,
+                        "rate": rate_data["conversion_rate"],
+                        "fetched_at": rate_data["last_update_utc"],
+                    }
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to fetch rate for {base_currency}-{target_currency} using PolygonClient: {e}"
+                )
+
+        logger.debug(f"Processed Polygon API results: {results}")
         return results
 
     def _save_rates(self, provider_results):
