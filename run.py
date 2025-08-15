@@ -1,11 +1,11 @@
 from flask_migrate import Migrate
 
-from app import create_app
-from app.extensions import db
+from app import create_app, db
 
 app = create_app()
 
 migrate = Migrate(app, db)
 
 if __name__ == "__main__":
+    print("Starting Flask app...")
     app.run(debug=True)

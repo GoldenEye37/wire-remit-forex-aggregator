@@ -26,3 +26,8 @@ class Config:
     EXCHANGE_RATE_API_CLIENT = os.environ.get("EXCHANGE_RATE_API_CLIENT")
     FIXER_IO_CLIENT = os.environ.get("FIXER_IO_CLIENT")
     POLYGON_CLIENT = os.environ.get("POLYGON_CLIENT")
+
+
+    # CELERY CONFIGS
+    CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
+    CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND")
