@@ -322,7 +322,6 @@ class AggregatedRate(db.Model):
             currency_rates = cls.get_latest_for_currency(currency)
             if currency_rates:
                 result[currency] = {
-                    "currency": currency,
                     "rates": currency_rates,
                     "count": len(currency_rates),
                 }
