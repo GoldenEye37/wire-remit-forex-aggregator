@@ -301,6 +301,34 @@ class AggregatedRate(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
+    @classmethod
+    def get_latest_for_all(cls):
+        """
+        Get rates for all currencies in the database, grouped by currency.
+        Each currency will show rates where it's either base or target (with inversion).
+        Returns a dictionary with currency codes as keys and their rates as values.
+        """
+        currencies_query = (
+            db.session.query(CurrencyPair.base_currency.label("currency"))
+            .union(db.session.query(CurrencyPair.target_currency.label("currency")))
+            .distinct()
+        )
+
+        all_currencies = [row.currency for row in currencies_query]
+
+        result = {}
+
+        for currency in all_currencies:
+            currency_rates = cls.get_latest_for_currency(currency)
+            if currency_rates:
+                result[currency] = {
+                    "currency": currency,
+                    "rates": currency_rates,
+                    "count": len(currency_rates),
+                }
+
+        return result
+
     def to_dict_with_pair(self):
         """Serialize AggregatedRate with currency pair info."""
         data = self.to_dict()
@@ -325,12 +353,12 @@ class User(db.Model):
     role = db.Column(db.String(50), default="customer")
     is_active = db.Column(db.Boolean, default=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, nullable=True)
     last_login = db.Column(db.DateTime)
 
-    creator = db.relationship('User', remote_side=[id], backref='created_users')
+    creator = db.relationship("User", remote_side=[id], backref="created_users")
 
     def to_dict(self):
         return {

@@ -16,8 +16,12 @@ rates_bp = Blueprint("rates", __name__, url_prefix="/rates")
 def get_rates():
     try:
         # Fetch all aggregated rates
-        rates = AggregatedRate.get_all_latest()
-        return jsonify([rate.to_dict_with_pair() for rate in rates])
+        rates = AggregatedRate.get_latest_for_all()
+        response = {
+            "success": True,
+            "data": rates
+        }
+        return jsonify(response)
     except Exception as e:
         logger.error(f"Error fetching rates: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
@@ -44,7 +48,7 @@ def get_rates_for_currency(base_or_target):
 
 @rates_bp.route("/historical", methods=["GET"])
 @require_jwt
-def get_historical_rates():
+def get_historical():
     """
     Get historical aggregated rates.
     Query params:
