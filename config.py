@@ -26,6 +26,7 @@ class Config:
     EXCHANGE_RATE_API_KEY = os.environ.get("EXCHANGE_RATE_API_KEY")
     FIXER_API_KEY = os.environ.get("FIXER_API_KEY")
     POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY")
+    CURRENCY_LAYER_API_KEY = os.environ.get("CURRENCY_LAYER_API_KEY")
 
     # CELERY CONFIGS
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
