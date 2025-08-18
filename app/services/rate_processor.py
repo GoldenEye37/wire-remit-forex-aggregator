@@ -25,19 +25,23 @@ class RateProcessorService:
         """
         Fetch rates for a specific currency pair from providers, clean the results, and save to the database.
         """
-        # fetch the currencies
         currencies = self._get_currencies()
 
         provider_results = []
+
         # fetch rate from exchange rates api
-        # exchange_rates_api_results = self._process_exchange_rate_client(currencies)
+        exchange_rates_api_results = self._process_exchange_rate_client(currencies)
 
         # fetch rate from polygon api
-        polygon_results = self._process_polygon_client(currencies)
+        # polygon_results = self._process_polygon_client(currencies)
+
+        # fetch rate from currency layer api
+        currency_layer_results = self._process_currency_layer_client(currencies)
 
         provider_results.append(
-            # {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
-            {"source": "polygon", "rate_data": polygon_results},
+            {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
+            {"source": "currency_layer", "rate_data": currency_layer_results},
+            # {"source": "polygon", "rate_data": polygon_results},
         )
 
         # Clean and save rates to the database
@@ -48,7 +52,9 @@ class RateProcessorService:
         Fetch currency pairs from the database and process rates for each pair.
         """
         currency_pairs = CurrencyPair.query.filter_by(is_active=True).all()
-        logger.debug(f"------- Fetched {len(currency_pairs)} currency pairs\n{currency_pairs}")
+        logger.debug(
+            f"------- Fetched {len(currency_pairs)} currency pairs\n{currency_pairs}"
+        )
         return currency_pairs
 
     def _group_currency_pairs_by_base(self, currency_pairs):
@@ -98,15 +104,9 @@ class RateProcessorService:
         # process rates for each base currency
         results = {}
         for base_currency, target_currencies in grouped_currency_pairs.items():
-            logger.info(
-                f" ---- Fetching rates for base currency {base_currency}"
-            )
-            self.rate_fetcher = RateFetcherService(
-                provider_names=["exchange_rate"]
-            )
-            rate_data = self.rate_fetcher.fetch_rates(
-                base_currency=base_currency
-            )
+            logger.info(f" ---- Fetching rates for base currency {base_currency}")
+            self.rate_fetcher = RateFetcherService(provider_names=["exchange_rate"])
+            rate_data = self.rate_fetcher.fetch_rates(base_currency=base_currency)
             logger.debug(
                 f"Fetched rates for base currency {base_currency}:\n\n {rate_data}"
             )
@@ -191,6 +191,77 @@ class RateProcessorService:
         logger.debug(f"Processed Polygon API results: {results}")
         return results
 
+    def _process_currency_layer_client(self, currencies) -> dict:
+        """
+        Process rates for Currency Layer API.
+
+        result:
+        {
+            "USD": [
+                {
+                    "pair": "ZAR",
+                    "rate": "<rate>",
+                    "fetched_at": "<timestamp_from_provider>"
+                },
+                {
+                    "pair": "GBP",
+                    "rate": "<rate>",
+                    "fetched_at": "<timestamp_from_provider>"
+                }
+            ]
+        }
+        """
+        logger.debug("Processing rates using Currency Layer API.")
+        results = {}
+
+        # client is expecting
+        # source and list of currencies
+        for base_currency, target_currencies in self._group_currency_pairs_by_base(
+            currencies
+        ).items():
+            logger.info(
+                f"Fetching rates for base currency {base_currency} using CurrencyLayerClient"
+            )
+            try:
+                self.rate_fetcher = RateFetcherService(
+                    provider_names=["currency_layer"]
+                )
+                rate_data = self.rate_fetcher.fetch_rates(
+                    base_currency=base_currency,
+                    target_currencies=target_currencies,
+                )
+                logger.debug(f"Fetched rates for {base_currency}: {rate_data}")
+
+                conversion_rates = rate_data.get("conversion_rates", {})
+                last_update = rate_data.get("last_update_utc")
+
+                results[base_currency] = []
+                for target_currency in target_currencies:
+                    if target_currency in conversion_rates:
+                        rate_value = conversion_rates[target_currency]
+
+                        results[base_currency].append(
+                            {
+                                "pair": target_currency,
+                                "rate": float(rate_value),
+                                "fetched_at": last_update,
+                            }
+                        )
+
+                        logger.debug(
+                            f"Mapped Currency Layer rate for {base_currency}-{target_currency}: {rate_value}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Rate for {base_currency}-{target_currency} not found in Currency Layer response. "
+                            f"Available rates: {list(conversion_rates.keys())}"
+                        )
+            except Exception as e:
+                logger.error(f"Failed to fetch rates for {base_currency}: {e}")
+
+        logger.debug(f"Processed Currency Layer API results: {results}")
+        return results
+
     def _save_rates(self, currencies: list[CurrencyPair], provider_results: list[dict]):
         """
         Save cleaned rates to the database.
@@ -234,7 +305,9 @@ class RateProcessorService:
                             # provider_id=source,  # no provider id at the moment
                             buy_rate=rate_value,
                             sell_rate=rate_value,
-                            fetched_at=rate["fetched_at"], #TODO use timezone-aware datetime (UTC)
+                            fetched_at=rate[
+                                "fetched_at"
+                            ],  # TODO use timezone-aware datetime (UTC)
                             created_at=func.now(),
                         )
 
@@ -249,31 +322,44 @@ class RateProcessorService:
 
                     # Aggregate rates for the currency pair
                     provider_count = len(provider_results)
-                    for currency_pair_id, rates_for_pair in grouped_rates_by_pair_id.items():
-                        self._aggregate_rates(currency_pair_id, rates_for_pair, provider_count)
+                    for (
+                        currency_pair_id,
+                        rates_for_pair,
+                    ) in grouped_rates_by_pair_id.items():
+                        self._aggregate_rates(
+                            currency_pair_id, rates_for_pair, provider_count
+                        )
 
             db.session.commit()
             logger.debug("Rates successfully saved to the database.")
 
         except Exception as e:
             import traceback
+
             logger.error(f"Failed to save rates to the database: {e}")
             logger.error(traceback.format_exc())
             db.session.rollback()
 
-    def _aggregate_rates(self, currency_pair_id: int, rates: list[Rate], provider_count: int):
+    def _aggregate_rates(
+        self, currency_pair_id: int, rates: list[Rate], provider_count: int
+    ):
         """
         Aggregate rates for the currency pair and save to the aggregation table.
         """
-        logger.info(f"Aggregating for currency_pair_id={currency_pair_id}; rates={rates}")
+        logger.info(
+            f"Aggregating for currency_pair_id={currency_pair_id}; rates={rates}"
+        )
         if not rates:
             logger.warning("No rates available for aggregation.")
             return
 
-
-        currency_pair = CurrencyPair.query.get(currency_pair_id) # avoiding pending relations
+        currency_pair = CurrencyPair.query.get(
+            currency_pair_id
+        )  # avoiding pending relations
         if not currency_pair:
-            logger.error(f"CurrencyPair id={currency_pair_id} not found. Skipping aggregation.")
+            logger.error(
+                f"CurrencyPair id={currency_pair_id} not found. Skipping aggregation."
+            )
             return
 
         logger.debug(
@@ -285,8 +371,8 @@ class RateProcessorService:
         sell_values = [self._to_decimal(r.sell_rate) for r in rates]
 
         count_dec = Decimal(len(buy_values))
-        average_buy_rate = (sum(buy_values) / count_dec)
-        average_sell_rate = (sum(sell_values) / count_dec)
+        average_buy_rate = sum(buy_values) / count_dec
+        average_sell_rate = sum(sell_values) / count_dec
 
         markup = self._to_decimal(currency_pair.markup_percentage or 0)
         one = Decimal("1")
@@ -295,9 +381,12 @@ class RateProcessorService:
         getcontext().prec = 28
         q = Decimal("0.00000001")
 
-        final_buy_rate = (average_buy_rate * (one + markup)).quantize(q, rounding=ROUND_HALF_UP)
-        final_sell_rate = (average_sell_rate * (one - markup)).quantize(q, rounding=ROUND_HALF_UP)
-
+        final_buy_rate = (average_buy_rate * (one + markup)).quantize(
+            q, rounding=ROUND_HALF_UP
+        )
+        final_sell_rate = (average_sell_rate * (one - markup)).quantize(
+            q, rounding=ROUND_HALF_UP
+        )
 
         # Create a new AggregatedRate object
         aggregated_rate = AggregatedRate(
