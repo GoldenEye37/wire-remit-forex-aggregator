@@ -31,8 +31,21 @@ class CurrencyService:
                     "message": "Base and target currencies cannot be the same",
                 }
 
-            existing_pair = CurrencyPair.query.filter_by(
-                base_currency=base_currency, target_currency=target_currency
+            pair_combinations = [
+                (base_currency, target_currency),
+                (target_currency, base_currency),
+            ]
+
+            existing_pair = CurrencyPair.query.filter(
+                db.or_(
+                    *[
+                        db.and_(
+                            CurrencyPair.base_currency == base,
+                            CurrencyPair.target_currency == target,
+                        )
+                        for base, target in pair_combinations
+                    ]
+                )
             ).first()
 
             if existing_pair:
