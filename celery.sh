@@ -1,74 +1,51 @@
 #!/bin/bash
 # Celery Worker startup script
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
+set -e  # Exit on any error
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-echo -e "${GREEN}Starting Celery Worker...${NC}"
-echo -e "${YELLOW}Project Root: $PROJECT_ROOT${NC}"
-
-# Change to project directory
-cd "$PROJECT_ROOT" || {
-    echo -e "${RED}Error: Could not change to project directory${NC}"
+error() {
+    echo -e "${RED}Error: $1${NC}" >&2
     exit 1
 }
 
-# Check if virtual environment exists
-if [ ! -d ".venv" ]; then
-    echo -e "${RED}Error: Virtual environment not found at .venv${NC}"
-    echo -e "${YELLOW}Please create a virtual environment first:${NC}"
-    echo "python -m venv .venv"
-    exit 1
-fi
+warn() {
+    echo -e "${YELLOW}Warning: $1${NC}"
+}
+
+info() {
+    echo -e "${GREEN}$1${NC}"
+}
+
+# Change to script directory
+cd "$(dirname "${BASH_SOURCE[0]}")" || error "Could not change to script directory"
+
+# Check dependencies
+[ -d ".venv" ] || error "Virtual environment not found. Run: python -m venv .venv"
 
 # Activate virtual environment
-echo -e "${YELLOW}Activating virtual environment...${NC}"
-source .venv/bin/activate || {
-    echo -e "${RED}Error: Could not activate virtual environment${NC}"
-    exit 1
-}
+source .venv/bin/activate || error "Could not activate virtual environment"
 
-# Check if Redis is running
-echo -e "${YELLOW}Checking Redis connection...${NC}"
-redis-cli ping > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Warning: Redis server is not running${NC}"
-    echo -e "${YELLOW}Please start Redis server first:${NC}"
-    echo "redis-server"
-    echo ""
-    echo -e "${YELLOW}Attempting to start Celery anyway...${NC}"
+# Check Redis (non-blocking)
+if ! redis-cli ping >/dev/null 2>&1; then
+    warn "Redis not running. Start with: redis-server"
 fi
 
-# Export Flask app for any imports
-export FLASK_APP=run.py
-export FLASK_ENV=development
+# Check Celery installation
+python -c "import celery" 2>/dev/null || error "Celery not installed. Run: pip install celery[redis]"
 
-# Check if Celery is installed
-python -c "import celery" > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Error: Celery is not installed${NC}"
-    echo -e "${YELLOW}Please install Celery:${NC}"
-    echo "pip install celery[redis]"
-    exit 1
-fi
+# Set environment
+export FLASK_APP=run.py FLASK_ENV=development
 
-echo -e "${GREEN}Starting Celery Worker with the following configuration:${NC}"
-echo -e "${YELLOW}  - App: tasks.celery_app.celery${NC}"
-echo -e "${YELLOW}  - Log Level: info${NC}"
-echo -e "${YELLOW}  - Concurrency: auto${NC}"
-echo ""
+# Start Celery
+info "Starting Celery Worker..."
+trap 'echo -e "\n${YELLOW}Shutting down...${NC}"; exit 0' INT
 
-# Set trap to handle Ctrl+C
-trap 'echo -e "\n${YELLOW}Shutting down Celery Worker...${NC}"; exit 0' INT
-
-# Start Celery Worker
 celery -A tasks.celery_app.celery worker \
     --loglevel=info \
     --concurrency=4 \
@@ -76,5 +53,3 @@ celery -A tasks.celery_app.celery worker \
     --without-gossip \
     --without-mingle \
     --without-heartbeat
-
-echo -e "${GREEN}Celery Worker stopped${NC}"
