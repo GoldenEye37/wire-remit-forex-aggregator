@@ -30,14 +30,14 @@ class RateProcessorService:
 
         provider_results = []
         # fetch rate from exchange rates api
-        exchange_rates_api_results = self._process_exchange_rate_client(currencies)
+        # exchange_rates_api_results = self._process_exchange_rate_client(currencies)
 
         # fetch rate from polygon api
-        # polygon_results = self._process_polygon_client(currencies)
+        polygon_results = self._process_polygon_client(currencies)
 
         provider_results.append(
-            {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
-            # {"source": "polygon", "rate_data": polygon_results},
+            # {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
+            {"source": "polygon", "rate_data": polygon_results},
         )
 
         # Clean and save rates to the database
@@ -164,8 +164,8 @@ class RateProcessorService:
                 f"Fetching rate for {base_currency}-{target_currency} using PolygonClient"
             )
             try:
+                self.rate_fetcher = RateFetcherService(provider_names=["polygon"])
                 rate_data = self.rate_fetcher.fetch_rates(
-                    provider_name="polygon",
                     from_currency=base_currency,
                     to_currency=target_currency,
                 )
