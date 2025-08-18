@@ -5,7 +5,7 @@ from tasks.celery_app import celery
 
 
 @celery.task(name="tasks.rate_refresh.refresh_rates", bind=True)
-def refresh_rates():
+def refresh_rates(self):
     """
     Fetch rates from all configured providers for active currency pairs,
     save into the Rate table, and aggregate into AggregatedRate.
