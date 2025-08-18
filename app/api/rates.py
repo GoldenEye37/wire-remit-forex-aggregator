@@ -11,7 +11,7 @@ from app.models import AggregatedRate, CurrencyPair
 rates_bp = Blueprint("rates", __name__, url_prefix="/rates")
 
 
-@rates_bp.route("/", methods=["GET"])
+@rates_bp.route("", methods=["GET"])
 @require_jwt
 def get_rates():
     try:
@@ -23,7 +23,7 @@ def get_rates():
         return jsonify({"error": "Internal Server Error"}), 500
 
 
-@rates_bp.route("/rates/<string:base_or_target>", methods=["GET"])
+@rates_bp.route("/<string:base_or_target>", methods=["GET"])
 @require_jwt
 def get_rates_for_currency(base_or_target):
     try:
@@ -36,7 +36,7 @@ def get_rates_for_currency(base_or_target):
         if not rates:
             return jsonify({}), 200
 
-        return jsonify([rate.to_dict_with_pair() for rate in rates])
+        return jsonify(rates)
     except Exception as e:
         logger.error(f"Error fetching rates: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
