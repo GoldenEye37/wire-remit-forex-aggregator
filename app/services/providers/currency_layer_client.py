@@ -118,3 +118,6 @@ class CurrencyLayerClient(BaseProviderClient):
         except Exception as e:
             logger.error(f"Currency Layer client error: {e}")
             raise
+
+    def health_check(self):
+        return super().health_check()
