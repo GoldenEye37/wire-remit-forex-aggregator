@@ -35,3 +35,16 @@ class Config:
     # JWT Config
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS"))
+
+    # Telemetry/Observability Configuration
+    TELEMETRY_ENABLED = os.getenv("TELEMETRY_ENABLED", "true").lower() == "true"
+    OTEL_SERVICE_NAME = os.getenv("OTEL_SERVICE_NAME", "forex-aggregator")
+    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
+    )
+    OTEL_ENABLE_TRACING = os.getenv("OTEL_ENABLE_TRACING", "true").lower() == "true"
+    OTEL_ENABLE_METRICS = os.getenv("OTEL_ENABLE_METRICS", "true").lower() == "true"
+    OTEL_ENABLE_PROMETHEUS = (
+        os.getenv("OTEL_ENABLE_PROMETHEUS", "true").lower() == "true"
+    )
+    PROMETHEUS_PORT = int(os.getenv("PROMETHEUS_PORT", "8000"))

@@ -1,0 +1,109 @@
+# OpenTelemetry Collector Configuration
+# This collector receives telemetry data from the application and exports it to various backends
+
+receivers:
+  # OTLP receiver for traces and metrics from application
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Prometheus receiver to scrape metrics from application
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'forex-aggregator'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['forex-aggregator:8000']
+
+processors:
+  # Batch processor to batch telemetry data before exporting
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+  # Resource processor to add/modify resource attributes
+  resource:
+    attributes:
+      - key: environment
+        value: ${ENVIRONMENT:-development}
+        action: upsert
+      - key: cluster
+        value: ${CLUSTER:-local}
+        action: upsert
+
+  # Attributes processor for enrichment
+  attributes:
+    actions:
+      - key: http.user_agent
+        action: delete
+      - key: net.peer.ip
+        action: delete
+
+exporters:
+  # Jaeger exporter for distributed tracing
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Prometheus exporter for metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: forex_aggregator
+    const_labels:
+      service: forex-aggregator
+
+  # Console exporter for debugging (optional)
+  logging:
+    loglevel: info
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # File exporter for backup/audit (optional)
+  file:
+    path: /var/log/otel/traces.json
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  # Performance profiler
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages for diagnostics
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [otlp/jaeger, logging]
+
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheus, logging]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888

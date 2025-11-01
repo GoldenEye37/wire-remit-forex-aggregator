@@ -18,6 +18,30 @@ def create_app():
 
     db.init_app(app)
 
+    # Initialize OpenTelemetry (only if enabled)
+    if app.config.get("TELEMETRY_ENABLED", True):
+        try:
+            from .telemetry import setup_telemetry, create_custom_metrics
+
+            # Setup telemetry with Flask app and DB engine
+            tracer, meter = setup_telemetry(app=app, db_engine=db.engine)
+
+            # Create and store custom metrics
+            if meter:
+                app.custom_metrics = create_custom_metrics(meter)
+                logger.info("Custom metrics initialized")
+
+            # Store tracer and meter on app for access in routes
+            app.tracer = tracer
+            app.meter = meter
+            logger.info("Telemetry initialization complete")
+        except Exception as e:
+            logger.error(f"Failed to initialize telemetry: {e}")
+            # Continue without telemetry
+            app.tracer = None
+            app.meter = None
+            app.custom_metrics = {}
+
     # register models
     # blueprints
     from flask import Blueprint
