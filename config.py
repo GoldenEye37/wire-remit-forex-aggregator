@@ -16,10 +16,16 @@ class Config:
     UUID_GENERATOR_FIELD_NAME = os.environ.get("UUID_GENERATOR_FIELD_NAME")
 
     # Database
-    SQLALCHEMY_DATABASE_URI = (
-        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
-        f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-    )
+    # Support both DATABASE_URL (AWS/Production) and individual variables (local dev)
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    else:
+        # Fallback to individual environment variables for local development
+        SQLALCHEMY_DATABASE_URI = (
+            f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
+            f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+        )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Exchange Rate API Clients
