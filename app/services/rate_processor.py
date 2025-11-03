@@ -227,7 +227,7 @@ class RateProcessorService:
                     provider_names=["currency_layer"]
                 )
                 rate_data = self.rate_fetcher.fetch_rates(
-                    base_currency=base_currency,
+                    source_currency=base_currency,
                     target_currencies=target_currencies,
                 )
                 logger.debug(f"Fetched rates for {base_currency}: {rate_data}")

@@ -21,10 +21,12 @@ def create_app():
     # Initialize OpenTelemetry (only if enabled)
     if app.config.get("TELEMETRY_ENABLED", True):
         try:
-            from .telemetry import setup_telemetry, create_custom_metrics
+            from .telemetry import create_custom_metrics, setup_telemetry
 
-            # Setup telemetry with Flask app and DB engine
-            tracer, meter = setup_telemetry(app=app, db_engine=db.engine)
+            # Setup telemetry with Flask app first (without db_engine)
+            # DB engine will be instrumented after app context is available
+            with app.app_context():
+                tracer, meter = setup_telemetry(app=app, db_engine=db.engine)
 
             # Create and store custom metrics
             if meter:
@@ -59,4 +61,43 @@ def create_app():
     api_v1.register_blueprint(admin_bp)
 
     app.register_blueprint(api_v1)
+
+    # Health check endpoint (no authentication required)
+    @app.route("/health", methods=["GET"])
+    def health_check():
+        """Health check endpoint for ECS and load balancer"""
+        from flask import jsonify
+
+        health_status = {
+            "status": "healthy",
+            "service": "forex-aggregator",
+            "environment": os.getenv("FLASK_ENV", "unknown"),
+        }
+
+        # Check database connection
+        try:
+            with app.app_context():
+                db.session.execute(db.text("SELECT 1"))
+            health_status["database"] = "connected"
+        except Exception as e:
+            health_status["database"] = f"error: {str(e)}"
+            health_status["status"] = "unhealthy"
+            return jsonify(health_status), 503
+
+        return jsonify(health_status), 200
+
+    # Root endpoint
+    @app.route("/", methods=["GET"])
+    def root():
+        """Root endpoint"""
+        from flask import jsonify
+
+        return jsonify(
+            {
+                "service": "WireRemit Forex Aggregator API",
+                "version": "1.0",
+                "status": "running",
+            }
+        ), 200
+
     return app
