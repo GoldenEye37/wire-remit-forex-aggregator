@@ -9,11 +9,18 @@ from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal, getcontext  # added
 
 from loguru import logger
+from opentelemetry import trace
 from sqlalchemy import func
 
 from app.models import AggregatedRate, CurrencyPair, Rate
 from app.services.rate_fetcher import RateFetcherService
 from app.utils.metrics import record_aggregation_metrics
+from app.utils.tracing import (
+    add_span_attributes,
+    add_span_event,
+    trace_currency_pair,
+    with_span,
+)
 
 # from app.extenstion import db
 from run import db
@@ -23,21 +30,31 @@ class RateProcessorService:
     def __init__(self):
         self.rate_fetcher = None
 
+    @with_span("rate_processor.process_rates_for_currencies")
     def process_rates_for_currencies(self):
         """
         Fetch rates for a specific currency pair from providers, clean the results, and save to the database.
         """
+        span = trace.get_current_span()
+
         currencies = self._get_currencies()
+
+        add_span_attributes(
+            span,
+            {"currency_pair.count": len(currencies), "operation.type": "process_all"},
+        )
 
         provider_results = []
 
         # fetch rate from exchange rates api
+        add_span_event(span, "processing_exchange_rate_api")
         exchange_rates_api_results = self._process_exchange_rate_client(currencies)
 
         # fetch rate from polygon api
         # polygon_results = self._process_polygon_client(currencies)
 
         # fetch rate from currency layer api
+        add_span_event(span, "processing_currency_layer_api")
         currency_layer_results = self._process_currency_layer_client(currencies)
 
         provider_results.append(
@@ -46,7 +63,10 @@ class RateProcessorService:
             # {"source": "polygon", "rate_data": polygon_results},
         )
 
+        add_span_attributes(span, {"provider.count": len(provider_results)})
+
         # Clean and save rates to the database
+        add_span_event(span, "saving_rates_to_database")
         self._save_rates(currencies, provider_results)
 
     def _get_currencies(self):
@@ -342,19 +362,34 @@ class RateProcessorService:
             logger.error(traceback.format_exc())
             db.session.rollback()
 
+    @with_span("rate_processor.aggregate_rates")
     def _aggregate_rates(
         self, currency_pair_id: int, rates: list[Rate], provider_count: int
     ):
         """
         Aggregate rates for the currency pair and save to the aggregation table.
         """
+        span = trace.get_current_span()
         start_time = time.time()
+
+        add_span_attributes(
+            span,
+            {
+                "currency_pair.id": currency_pair_id,
+                "rate.count": len(rates),
+                "provider.count": provider_count,
+                "operation.type": "aggregate",
+            },
+        )
 
         logger.info(
             f"Aggregating for currency_pair_id={currency_pair_id}; rates={rates}"
         )
         if not rates:
             logger.warning("No rates available for aggregation.")
+            add_span_attributes(
+                span, {"aggregation.skipped": True, "skip.reason": "no_rates"}
+            )
             return
 
         currency_pair = CurrencyPair.query.get(
@@ -364,7 +399,16 @@ class RateProcessorService:
             logger.error(
                 f"CurrencyPair id={currency_pair_id} not found. Skipping aggregation."
             )
+            add_span_attributes(
+                span,
+                {"aggregation.skipped": True, "skip.reason": "currency_pair_not_found"},
+            )
             return
+
+        # Add currency pair info to span
+        trace_currency_pair(
+            span, currency_pair.base_currency, currency_pair.target_currency
+        )
 
         logger.debug(
             f"Aggregating rates for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
@@ -392,6 +436,19 @@ class RateProcessorService:
             q, rounding=ROUND_HALF_UP
         )
 
+        # Add aggregation results to span
+        add_span_attributes(
+            span,
+            {
+                "rate.average_buy": float(average_buy_rate),
+                "rate.average_sell": float(average_sell_rate),
+                "rate.final_buy": float(final_buy_rate),
+                "rate.final_sell": float(final_sell_rate),
+                "markup.percentage": float(markup),
+                "aggregation.method": "average",
+            },
+        )
+
         # Create a new AggregatedRate object
         aggregated_rate = AggregatedRate(
             currency_pair_id=currency_pair.id,
@@ -410,6 +467,14 @@ class RateProcessorService:
         db.session.add(aggregated_rate)
         logger.info(
             f"Aggregated rates saved for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
+        )
+
+        add_span_event(
+            span,
+            "aggregated_rate_saved",
+            {
+                "currency_pair": f"{currency_pair.base_currency}/{currency_pair.target_currency}"
+            },
         )
 
         # Record metrics

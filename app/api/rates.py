@@ -3,11 +3,13 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
 from loguru import logger
+from opentelemetry import trace
 
 from app.decorators import require_jwt
 from app.extensions import db
 from app.models import AggregatedRate, CurrencyPair
 from app.utils.metrics import with_request_metrics
+from app.utils.tracing import add_span_attributes, trace_currency_pair
 
 rates_bp = Blueprint("rates", __name__, url_prefix="/rates")
 
@@ -16,13 +18,31 @@ rates_bp = Blueprint("rates", __name__, url_prefix="/rates")
 @require_jwt
 @with_request_metrics("/api/v1.0/rates")
 def get_rates():
+    span = trace.get_current_span()
+
     try:
+        add_span_attributes(
+            span, {"http.route": "/api/v1.0/rates", "operation.type": "fetch_all_rates"}
+        )
+
         # Fetch all aggregated rates
         rates = AggregatedRate.get_latest_for_all()
+
+        add_span_attributes(
+            span,
+            {
+                "response.rate_count": len(rates) if isinstance(rates, list) else 0,
+                "operation.success": True,
+            },
+        )
+
         response = {"success": True, "data": rates}
         return jsonify(response)
     except Exception as e:
         logger.error(f"Error fetching rates: {e}")
+        add_span_attributes(
+            span, {"operation.success": False, "error.type": type(e).__name__}
+        )
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -30,19 +50,45 @@ def get_rates():
 @require_jwt
 @with_request_metrics("/api/v1.0/rates/<currency>")
 def get_rates_for_currency(base_or_target):
+    span = trace.get_current_span()
+
     try:
+        add_span_attributes(
+            span,
+            {
+                "http.route": "/api/v1.0/rates/<currency>",
+                "query.currency": base_or_target,
+                "operation.type": "fetch_currency_rates",
+            },
+        )
+
         error = CurrencyPair.validate_currency(base_or_target)
         if error:
+            add_span_attributes(
+                span, {"operation.success": False, "error.type": "validation_error"}
+            )
             return jsonify({"error": error}), 400
 
         # Fetch rates for this currency
         rates = AggregatedRate.get_latest_for_currency(base_or_target)
+
+        add_span_attributes(
+            span,
+            {
+                "response.rate_count": len(rates) if rates else 0,
+                "operation.success": True,
+            },
+        )
+
         if not rates:
             return jsonify({}), 200
 
         return jsonify(rates)
     except Exception as e:
         logger.error(f"Error fetching rates: {e}")
+        add_span_attributes(
+            span, {"operation.success": False, "error.type": type(e).__name__}
+        )
         return jsonify({"error": "Internal Server Error"}), 500
 
 
@@ -60,6 +106,8 @@ def get_historical():
     - limit: Maximum number of records (optional, default: 100, max: 1000)
     - order: 'asc' or 'desc' (optional, default: 'desc')
     """
+    span = trace.get_current_span()
+
     try:
         base_currency = (
             request.args.get("base", "").upper() if request.args.get("base") else None
@@ -73,6 +121,24 @@ def get_historical():
         to_date_str = request.args.get("to_date")
         limit = min(int(request.args.get("limit", 100)), 1000)  # Max 1000 records
         order = request.args.get("order", "desc").lower()
+
+        # Add query parameters to span
+        add_span_attributes(
+            span,
+            {
+                "http.route": "/api/v1.0/rates/historical",
+                "query.limit": limit,
+                "query.order": order,
+                "operation.type": "fetch_historical_rates",
+            },
+        )
+
+        if base_currency:
+            add_span_attributes(span, {"query.base_currency": base_currency})
+        if target_currency:
+            add_span_attributes(span, {"query.target_currency": target_currency})
+        if base_currency and target_currency:
+            trace_currency_pair(span, base_currency, target_currency)
 
         # Validate order parameter
         if order not in ["asc", "desc"]:
@@ -140,6 +206,17 @@ def get_historical():
             historical_rates.append(rate_dict)
 
         logger.info(f"Fetched {len(historical_rates)} historical rates")
+
+        add_span_attributes(
+            span,
+            {
+                "response.rate_count": len(historical_rates),
+                "query.from_date": from_date.strftime("%Y-%m-%d"),
+                "query.to_date": to_date.strftime("%Y-%m-%d"),
+                "operation.success": True,
+            },
+        )
+
         return jsonify(
             {
                 "historical_rates": historical_rates,
@@ -157,4 +234,7 @@ def get_historical():
 
     except Exception as e:
         logger.error(f"Error fetching historical rates: {e}")
+        add_span_attributes(
+            span, {"operation.success": False, "error.type": type(e).__name__}
+        )
         return jsonify({"error": "Internal Server Error"}), 500

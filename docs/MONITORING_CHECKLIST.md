@@ -1,9 +1,9 @@
 # Comprehensive Monitoring Checklist & Implementation Plan
 ## WireRemit Forex Aggregator
 
-**Version:** 1.0
-**Last Updated:** 2025-11-03
-**Status:** Implementation in Progress
+**Version:** 1.1
+**Last Updated:** 2025-11-04
+**Status:** Phase 1.2 Complete - Implementation in Progress
 
 ---
 
@@ -20,10 +20,12 @@
 - [x] CloudWatch Logs integration
 - [x] ECS Container Insights enabled
 
+### ✅ Recently Completed
+- [x] **Phase 1.1**: Custom metrics recording in code (2025-11-03)
+- [x] **Phase 1.2**: Custom spans for business logic (2025-11-04)
+
 ### ❌ Missing/Incomplete
-- [ ] Custom metrics recording in code
-- [ ] Custom spans for business logic
-- [ ] Structured logging
+- [ ] Structured logging with trace correlation
 - [ ] Business event tracking
 - [ ] Celery task monitoring
 - [ ] Database connection pool monitoring
@@ -418,24 +420,39 @@
 - Metrics scraped successfully every 15s
 - No errors in OTEL exporter logs
 
-#### 1.2 Add Custom Tracing
-- [ ] Add spans to rate fetching with retry attempts
-- [ ] Add spans to rate aggregation
-- [ ] Add spans to authentication flow
-- [ ] Add error recording to spans
-- [ ] Add business attributes to spans (provider, currency_pair, user_id)
+#### 1.2 Add Custom Tracing ✅ COMPLETE
+- [x] Add spans to rate fetching with retry attempts
+- [x] Add spans to rate aggregation
+- [x] Add spans to authentication flow
+- [x] Add error recording to spans
+- [x] Add business attributes to spans (provider, currency_pair, user_id)
+- [x] Create tracing utility module (`app/utils/tracing.py`)
+- [x] Add span events for key operations
+- [x] Create test script for tracing verification
 
-**Files to Modify:**
-- `app/services/rate_fetcher.py`
-- `app/services/rate_processor.py`
-- `app/decorators.py`
-- `app/api/rates.py`
+**Files Modified:**
+- `app/services/rate_fetcher.py` - Added 4 span decorators
+- `app/services/rate_processor.py` - Added 2 span decorators
+- `app/decorators.py` - Added tracing to authentication
+- `app/api/rates.py` - Added span attributes to endpoints
 
-**Acceptance Criteria:**
-- Traces visible in Jaeger UI
-- Spans properly nested and correlated
-- Attributes populated correctly
-- Errors recorded in traces
+**Files Created:**
+- `app/utils/tracing.py` - Tracing utility module
+- `test_tracing.sh` - Automated test script
+- `docs/phases/phase1/1.2-custom-tracing.md` - Implementation guide
+- `docs/phases/phase1/PHASE_1.2_COMPLETE.md` - Completion summary
+
+**Acceptance Criteria:** ✅ ALL MET
+- ✅ Traces visible in Jaeger UI
+- ✅ Spans properly nested and correlated
+- ✅ Attributes populated correctly
+- ✅ Errors recorded in traces
+- ✅ Comprehensive span hierarchy for all operations
+- ✅ User context tracked in authentication spans
+- ✅ Provider retry attempts tracked with events
+- ✅ Currency pair context in all relevant spans
+
+**Completed:** 2025-11-04
 
 #### 1.3 Structured Logging Setup
 - [ ] Configure loguru for structured JSON logging
