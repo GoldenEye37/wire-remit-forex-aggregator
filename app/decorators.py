@@ -1,6 +1,6 @@
 # Authorization decorators
-from functools import wraps
 import time
+from functools import wraps
 
 from flask import current_app, g, jsonify, request
 from loguru import logger

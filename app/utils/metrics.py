@@ -5,11 +5,10 @@ This module provides helper functions and decorators to easily record
 metrics throughout the application without cluttering business logic.
 """
 
-from flask import current_app, request
-from functools import wraps
-from typing import Optional
 import time
+from functools import wraps
 
+from flask import current_app, request
 from loguru import logger
 
 
@@ -56,8 +55,8 @@ def record_request_metrics(
 def record_rate_fetch_metrics(
     provider: str,
     success: bool,
-    duration_ms: Optional[float] = None,
-    error_type: Optional[str] = None,
+    duration_ms: float | None = None,
+    error_type: str | None = None,
 ) -> None:
     """
     Record rate fetching metrics.
@@ -220,7 +219,7 @@ def with_request_metrics(endpoint: str):
 
                 return response
 
-            except Exception as e:
+            except Exception:
                 # Re-raise the exception after recording metrics
                 raise
 

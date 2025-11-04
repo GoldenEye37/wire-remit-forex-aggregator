@@ -1,14 +1,13 @@
 import concurrent.futures
 import time
 
-from flask import current_app
 from loguru import logger
 
 from app.services.providers.provider_factory import (
     PROVIDER_CLIENTS,
     get_provider_client,
 )
-from app.utils.metrics import record_rate_fetch_metrics, record_provider_error
+from app.utils.metrics import record_rate_fetch_metrics
 
 
 def exponential_backoff(attempt, base=0.5, factor=2.0, max_backoff=8.0):

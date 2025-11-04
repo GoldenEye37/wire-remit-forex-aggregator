@@ -3,12 +3,11 @@
 This service is responsible for processing and aggregating forex rates from various providers.
 """
 
+import time
 from collections import defaultdict
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal, getcontext  # added
-import time
 
-from flask import current_app
 from loguru import logger
 from sqlalchemy import func
 
