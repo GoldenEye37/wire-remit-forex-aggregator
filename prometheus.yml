@@ -4,8 +4,8 @@ global:
   scrape_interval: 15s # How frequently to scrape targets
   evaluation_interval: 15s # How frequently to evaluate rules
   external_labels:
-    cluster: 'forex-aggregator-dev'
-    environment: 'development'
+    cluster: "forex-aggregator-dev"
+    environment: "development"
 
 # Alertmanager configuration (optional - add when ready)
 # alerting:
@@ -21,35 +21,35 @@ rule_files:
 # Scrape configurations
 scrape_configs:
   # Prometheus itself
-  - job_name: 'prometheus'
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]
 
   # OpenTelemetry Collector metrics
-  - job_name: 'otel-collector'
+  - job_name: "otel-collector"
     scrape_interval: 10s
     static_configs:
-      - targets: ['otel-collector:8888']
+      - targets: ["otel-collector:8888"]
         labels:
-          service: 'otel-collector'
+          service: "otel-collector"
 
   # OpenTelemetry Collector Prometheus exporter
-  - job_name: 'otel-collector-prometheus-exporter'
+  - job_name: "otel-collector-prometheus-exporter"
     scrape_interval: 10s
     static_configs:
-      - targets: ['otel-collector:8889']
+      - targets: ["otel-collector:8889"]
         labels:
-          service: 'forex-aggregator'
+          service: "forex-aggregator"
 
   # Direct scraping from Flask application (Prometheus exporter)
-  - job_name: 'forex-aggregator-direct'
+  - job_name: "forex-aggregator-direct"
     scrape_interval: 10s
-    metrics_path: '/metrics'
+    metrics_path: "/metrics"
     static_configs:
-      - targets: ['forex-aggregator:8000']
+      - targets: ["forex-aggregator:8000"]
         labels:
-          service: 'forex-aggregator'
-          component: 'api'
+          service: "forex-aggregator"
+          component: "api"
 
   # Redis exporter (if you add one)
   # - job_name: 'redis'
@@ -60,10 +60,3 @@ scrape_configs:
   # - job_name: 'postgresql'
   #   static_configs:
   #     - targets: ['postgres-exporter:9187']
-
-# Storage configuration
-storage:
-  tsdb:
-    retention:
-      time: 30d
-      size: 10GB

@@ -3,11 +3,13 @@ from flask import Blueprint, jsonify, request
 from loguru import logger
 
 from app.services.auth_service import AuthService
+from app.utils.metrics import with_request_metrics
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
 @auth_bp.route("/signup", methods=["POST"])
+@with_request_metrics("/api/v1.0/auth/signup")
 def register():
     """
     Register a new user.
@@ -54,6 +56,7 @@ def register():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@with_request_metrics("/api/v1.0/auth/login")
 def login():
     """
     Authenticate user login.

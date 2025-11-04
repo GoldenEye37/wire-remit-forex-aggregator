@@ -14,10 +14,10 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - job_name: 'forex-aggregator'
+        - job_name: "forex-aggregator"
           scrape_interval: 10s
           static_configs:
-            - targets: ['forex-aggregator:8000']
+            - targets: ["forex-aggregator:8000"]
 
 processors:
   # Batch processor to batch telemetry data before exporting
@@ -34,10 +34,10 @@ processors:
   resource:
     attributes:
       - key: environment
-        value: ${ENVIRONMENT:-development}
+        value: development
         action: upsert
       - key: cluster
-        value: ${CLUSTER:-local}
+        value: local
         action: upsert
 
   # Attributes processor for enrichment
@@ -62,15 +62,11 @@ exporters:
     const_labels:
       service: forex-aggregator
 
-  # Console exporter for debugging (optional)
-  logging:
-    loglevel: debug
+  # Debug exporter for console output (replaces deprecated logging exporter)
+  debug:
+    verbosity: normal
     sampling_initial: 5
     sampling_thereafter: 200
-
-  # File exporter for backup/audit (optional)
-  file:
-    path: /var/log/otel/traces.json
 
 extensions:
   # Health check extension
@@ -93,17 +89,22 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource, attributes]
-      exporters: [otlp/jaeger, logging]
+      exporters: [otlp/jaeger, debug]
 
     # Metrics pipeline
     metrics:
       receivers: [otlp, prometheus]
       processors: [memory_limiter, batch, resource]
-      exporters: [prometheus, logging]
+      exporters: [prometheus, debug]
 
   telemetry:
     logs:
       level: info
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

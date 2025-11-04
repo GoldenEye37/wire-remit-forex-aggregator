@@ -7,20 +7,19 @@ from loguru import logger
 from app.decorators import require_jwt
 from app.extensions import db
 from app.models import AggregatedRate, CurrencyPair
+from app.utils.metrics import with_request_metrics
 
 rates_bp = Blueprint("rates", __name__, url_prefix="/rates")
 
 
 @rates_bp.route("", methods=["GET"])
 @require_jwt
+@with_request_metrics("/api/v1.0/rates")
 def get_rates():
     try:
         # Fetch all aggregated rates
         rates = AggregatedRate.get_latest_for_all()
-        response = {
-            "success": True,
-            "data": rates
-        }
+        response = {"success": True, "data": rates}
         return jsonify(response)
     except Exception as e:
         logger.error(f"Error fetching rates: {e}")
@@ -29,6 +28,7 @@ def get_rates():
 
 @rates_bp.route("/<string:base_or_target>", methods=["GET"])
 @require_jwt
+@with_request_metrics("/api/v1.0/rates/<currency>")
 def get_rates_for_currency(base_or_target):
     try:
         error = CurrencyPair.validate_currency(base_or_target)
@@ -48,6 +48,7 @@ def get_rates_for_currency(base_or_target):
 
 @rates_bp.route("/historical", methods=["GET"])
 @require_jwt
+@with_request_metrics("/api/v1.0/rates/historical")
 def get_historical():
     """
     Get historical aggregated rates.

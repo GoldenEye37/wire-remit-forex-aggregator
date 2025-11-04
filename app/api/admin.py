@@ -5,12 +5,14 @@ from loguru import logger
 from app.decorators import require_jwt_admin
 from app.services.currency_service import CurrencyService
 from app.services.user_service import UserService
+from app.utils.metrics import with_request_metrics
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
 @admin_bp.route("/", methods=["GET"])
 @require_jwt_admin
+@with_request_metrics("/api/v1.0/admin")
 def hello_admin():
     return jsonify(
         {
@@ -22,6 +24,7 @@ def hello_admin():
 
 @admin_bp.route("/currency-pairs", methods=["POST"])
 @require_jwt_admin
+@with_request_metrics("/api/v1.0/admin/currency-pairs")
 def add_currency_pair():
     """
     Add a new currency pair.
@@ -65,6 +68,7 @@ def add_currency_pair():
 
 @admin_bp.route("/currency-pairs/markup", methods=["PUT"])
 @require_jwt_admin
+@with_request_metrics("/api/v1.0/admin/currency-pairs/markup")
 def update_all_pairs_markup():
     """
     Update markup for all currency pairs.
@@ -101,6 +105,7 @@ def update_all_pairs_markup():
 
 @admin_bp.route("/users", methods=["POST"])
 @require_jwt_admin
+@with_request_metrics("/api/v1.0/admin/users")
 def create_admin_user():
     """
     Create a new admin user.

@@ -74,7 +74,9 @@ class TelemetryConfig:
         return attrs
 
 
-def setup_telemetry(app=None, db_engine=None) -> tuple[trace.Tracer | None, metrics.Meter | None]:
+def setup_telemetry(
+    app=None, db_engine=None
+) -> tuple[trace.Tracer | None, metrics.Meter | None]:
     """
     Initialize OpenTelemetry instrumentation with traces and metrics.
 
@@ -146,16 +148,27 @@ def _setup_metrics(resource: Resource, config: TelemetryConfig) -> metrics.Meter
     )
 
     # Prometheus Exporter (optional)
+    # NOTE: Disabled when using Gunicorn with multiple workers as each worker
+    # would try to bind to the same port. Use OTLP exporter instead.
     if config.enable_prometheus:
-        prometheus_reader = PrometheusMetricReader()
-        metric_readers.append(prometheus_reader)
+        import os
 
-        # Start Prometheus metrics HTTP server
-        try:
-            start_http_server(port=config.prometheus_port, addr="0.0.0.0")
-            logger.info(f"Prometheus metrics server started on port {config.prometheus_port}")
-        except OSError as e:
-            logger.warning(f"Could not start Prometheus metrics server: {e}")
+        # Only start Prometheus server in the main process or if running with single worker
+        worker_id = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+        if worker_id is None:  # Not using multiprocess mode
+            try:
+                prometheus_reader = PrometheusMetricReader()
+                metric_readers.append(prometheus_reader)
+
+                # Start Prometheus metrics HTTP server
+                start_http_server(port=config.prometheus_port, addr="0.0.0.0")
+                logger.info(
+                    f"Prometheus metrics server started on port {config.prometheus_port}"
+                )
+            except OSError as e:
+                logger.warning(f"Could not start Prometheus metrics server: {e}")
+        else:
+            logger.info("Skipping Prometheus HTTP server in multiprocess mode")
 
     # Create meter provider
     meter_provider = MeterProvider(resource=resource, metric_readers=metric_readers)

@@ -50,7 +50,9 @@ class Config:
     )
     OTEL_ENABLE_TRACING = os.getenv("OTEL_ENABLE_TRACING", "true").lower() == "true"
     OTEL_ENABLE_METRICS = os.getenv("OTEL_ENABLE_METRICS", "true").lower() == "true"
+    # Disable Prometheus HTTP server by default (conflicts with Gunicorn workers)
+    # Metrics are exported via OTLP to the collector instead
     OTEL_ENABLE_PROMETHEUS = (
-        os.getenv("OTEL_ENABLE_PROMETHEUS", "true").lower() == "true"
+        os.getenv("OTEL_ENABLE_PROMETHEUS", "false").lower() == "true"
     )
     PROMETHEUS_PORT = int(os.getenv("PROMETHEUS_PORT", "8000"))

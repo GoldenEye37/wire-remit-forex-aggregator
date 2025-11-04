@@ -6,12 +6,15 @@ This service is responsible for processing and aggregating forex rates from vari
 from collections import defaultdict
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal, getcontext  # added
+import time
 
+from flask import current_app
 from loguru import logger
 from sqlalchemy import func
 
 from app.models import AggregatedRate, CurrencyPair, Rate
 from app.services.rate_fetcher import RateFetcherService
+from app.utils.metrics import record_aggregation_metrics
 
 # from app.extenstion import db
 from run import db
@@ -346,6 +349,8 @@ class RateProcessorService:
         """
         Aggregate rates for the currency pair and save to the aggregation table.
         """
+        start_time = time.time()
+
         logger.info(
             f"Aggregating for currency_pair_id={currency_pair_id}; rates={rates}"
         )
@@ -406,6 +411,12 @@ class RateProcessorService:
         db.session.add(aggregated_rate)
         logger.info(
             f"Aggregated rates saved for currency pair {currency_pair.base_currency}-{currency_pair.target_currency}."
+        )
+
+        # Record metrics
+        duration_ms = (time.time() - start_time) * 1000
+        record_aggregation_metrics(
+            currency_pair_count=1, duration_ms=duration_ms, success=True
         )
 
     @staticmethod

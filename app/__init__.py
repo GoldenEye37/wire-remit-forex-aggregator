@@ -19,7 +19,7 @@ def create_app():
     db.init_app(app)
 
     # Initialize OpenTelemetry (only if enabled)
-    if app.config.get("TELEMETRY_ENABLED", True):
+    if app.config.get("TELEMETRY_ENABLED", False):
         try:
             from .telemetry import create_custom_metrics, setup_telemetry
 
