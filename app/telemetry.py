@@ -9,7 +9,6 @@ This module sets up:
 
 import logging
 import os
-from typing import Optional
 
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -75,7 +74,7 @@ class TelemetryConfig:
         return attrs
 
 
-def setup_telemetry(app=None, db_engine=None) -> tuple[Optional[trace.Tracer], Optional[metrics.Meter]]:
+def setup_telemetry(app=None, db_engine=None) -> tuple[trace.Tracer | None, metrics.Meter | None]:
     """
     Initialize OpenTelemetry instrumentation with traces and metrics.
 

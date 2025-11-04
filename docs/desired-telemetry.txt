@@ -1,0 +1,35 @@
+Application Layer 
+Metrics (OTEL sdks)
+RPS
+Latency
+Error Rate
+Active sessions
+Logs (Loki)
+Error logs (Exceptions, stack traces, failed requests)
+business events
+rates update 
+Celery task logs ( started, completed, task details)
+Traces (open telemetry or tempo)
+Request cycle
+Spans
+Attributes and errors 
+
+Worker Layer 
+Tasks received and success rate 
+Duration
+Queue depth
+Dead letter queue info
+
+Database Layer
+Connection health (active/idle) - connection leaks or saturations
+Query latency
+Index efficiency 
+locks and deadlocks
+
+Redis Backend Layer
+
+Infrastructure Layer
+CPU utilization 
+Memory
+Storage and Disk I/O
+Network - detect spikes and traffic 

@@ -64,7 +64,7 @@ exporters:
 
   # Console exporter for debugging (optional)
   logging:
-    loglevel: info
+    loglevel: debug
     sampling_initial: 5
     sampling_thereafter: 200
 
