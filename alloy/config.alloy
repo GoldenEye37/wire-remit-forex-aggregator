@@ -65,55 +65,60 @@ loki.source.docker "docker_logs" {
 
 // Process and parse JSON logs
 loki.process "parse_json" {
-  // Try to parse logs as JSON
+  // Parse loguru's serialized JSON structure
+  // Structure: {"text": "...", "record": {"level": {"name": "INFO"}, "extra": {...}}}
   stage.json {
     expressions = {
-      level      = "level",
-      logger     = "logger",
-      message    = "message",
-      timestamp  = "timestamp",
-      trace_id   = "trace_id",
-      span_id    = "span_id",
-      request_id = "request_id",
-      operation  = "operation",
-      user_id    = "user.id",
-      http_method = "http.method",
-      http_path  = "http.path",
-      http_status = "http.status",
-      duration_ms = "duration_ms",
-      error_type = "error_type",
-      provider   = "provider",
+      // Extract from record.level.name
+      level       = "record.level.name",
+      // Extract from record object
+      logger      = "record.name",
+      message     = "record.message",
+      function    = "record.function",
+      line        = "record.line",
+      // Extract from record.extra
+      trace_id    = "record.extra.trace_id",
+      span_id     = "record.extra.span_id",
+      request_id  = "record.extra.request_id",
+      operation   = "record.extra.operation",
+      user_id     = "record.extra.user_id",
+      http_method = "record.extra.http_method",
+      http_path   = "record.extra.http_path",
+      http_status = "record.extra.http_status",
+      duration_ms = "record.extra.duration_ms",
+      error_type  = "record.extra.error_type",
+      provider    = "record.extra.provider",
     }
   }
 
   // Extract level as a label (for efficient filtering)
   stage.labels {
     values = {
-      level = "level",
+      level = "",
     }
   }
 
   // Add extracted fields as labels for indexing
   stage.labels {
     values = {
-      logger    = "logger",
-      operation = "operation",
+      logger    = "",
+      operation = "",
     }
   }
 
   // Output structured metadata (not indexed, but searchable)
   stage.structured_metadata {
     values = {
-      trace_id    = "trace_id",
-      span_id     = "span_id",
-      request_id  = "request_id",
-      user_id     = "user_id",
-      http_method = "http_method",
-      http_path   = "http_path",
-      http_status = "http_status",
-      duration_ms = "duration_ms",
-      error_type  = "error_type",
-      provider    = "provider",
+      trace_id    = "",
+      span_id     = "",
+      request_id  = "",
+      user_id     = "",
+      http_method = "",
+      http_path   = "",
+      http_status = "",
+      duration_ms = "",
+      error_type  = "",
+      provider    = "",
     }
   }
 
