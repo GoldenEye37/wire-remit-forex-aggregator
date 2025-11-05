@@ -17,8 +17,10 @@ def create_app():
     from .utils.logging import setup_logging
 
     # Determine log format based on environment
-    # Use JSON logs in production, human-readable in development
-    json_logs = os.getenv("FLASK_ENV", "development") == "production"
+    # Use JSON logs if LOG_FORMAT=json or in production
+    log_format = os.getenv("LOG_FORMAT", "").lower()
+    flask_env = os.getenv("FLASK_ENV", "development")
+    json_logs = log_format == "json" or flask_env == "production"
     log_level = os.getenv("LOG_LEVEL", "INFO")
 
     setup_logging(app, log_level=log_level, json_logs=json_logs)

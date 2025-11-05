@@ -15,6 +15,7 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=development
+      - LOG_FORMAT=json
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/forex_db
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317

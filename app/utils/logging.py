@@ -51,128 +51,29 @@ def get_request_context() -> dict[str, Any]:
 
     if has_request_context():
         try:
-            context["http.method"] = request.method
-            context["http.path"] = request.path
-            context["http.url"] = request.url
+            context["http_method"] = request.method
+            context["http_path"] = request.path
+            context["http_url"] = request.url
 
             # Add remote address if available
             if request.remote_addr:
-                context["http.client_ip"] = request.remote_addr
+                context["http_client_ip"] = request.remote_addr
 
             # Add user context if available in Flask g object
             if hasattr(g, "user_id"):
-                context["user.id"] = g.user_id
+                context["user_id"] = g.user_id
             if hasattr(g, "user_role"):
-                context["user.role"] = g.user_role
+                context["user_role"] = g.user_role
 
             # Add request ID if available
             if hasattr(g, "request_id"):
-                context["request.id"] = g.request_id
+                context["request_id"] = g.request_id
 
         except Exception:
             # If any error extracting context, return what we have
             pass
 
     return context
-
-
-def serialize_log_record(record: dict) -> dict:
-    """
-    Serialize a loguru record into a structured format with context.
-
-    Args:
-        record: Loguru record dictionary
-
-    Returns:
-        Serialized record with trace and request context
-    """
-    # Base log structure
-    log_entry = {
-        "timestamp": record["time"].isoformat(),
-        "level": record["level"].name,
-        "logger": record["name"],
-        "message": record["message"],
-        "function": record["function"],
-        "line": record["line"],
-    }
-
-    # Add trace context if available
-    trace_context = get_trace_context()
-    if trace_context:
-        log_entry.update(trace_context)
-
-    # Add request context if available
-    request_context = get_request_context()
-    if request_context:
-        log_entry.update(request_context)
-
-    # Add extra fields from record
-    if record.get("extra"):
-        # Filter out internal loguru fields
-        extra = {k: v for k, v in record["extra"].items() if not k.startswith("_")}
-        log_entry.update(extra)
-
-    # Add exception info if present
-    if record.get("exception"):
-        exc_info = record["exception"]
-        log_entry["exception"] = {
-            "type": exc_info.type.__name__ if exc_info.type else None,
-            "value": str(exc_info.value) if exc_info.value else None,
-            "traceback": record.get("exception", {}).get("traceback", None),
-        }
-
-    return log_entry
-
-
-def json_formatter(record: dict) -> str:
-    """
-    Format log record as JSON string.
-
-    Args:
-        record: Loguru record dictionary
-
-    Returns:
-        JSON formatted log string
-    """
-    import json
-
-    serialized = serialize_log_record(record)
-    return json.dumps(serialized) + "\n"
-
-
-def console_formatter(record: dict) -> str:
-    """
-    Format log record for console output (human-readable with context).
-
-    Args:
-        record: Loguru record dictionary
-
-    Returns:
-        Formatted log string for console
-    """
-    trace_context = get_trace_context()
-    trace_info = ""
-    if trace_context:
-        trace_info = f" [trace_id={trace_context.get('trace_id', '')[:8]}]"
-
-    # Format: timestamp | LEVEL | message [trace_id=xxx] [context fields]
-    base = (
-        f"<green>{record['time']:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-        f"<level>{record['level'].name:8}</level> | "
-        f"<cyan>{record['name']}</cyan>:<cyan>{record['function']}</cyan>:"
-        f"<cyan>{record['line']}</cyan> - "
-        f"<level>{record['message']}</level>"
-        f"{trace_info}"
-    )
-
-    # Add extra context if present
-    if record.get("extra"):
-        extra = {k: v for k, v in record["extra"].items() if not k.startswith("_")}
-        if extra:
-            extra_str = " | ".join([f"{k}={v}" for k, v in extra.items()])
-            base += f" | {extra_str}"
-
-    return base + "\n"
 
 
 def setup_logging(app: Flask, log_level: str = "INFO", json_logs: bool = False):
@@ -188,18 +89,48 @@ def setup_logging(app: Flask, log_level: str = "INFO", json_logs: bool = False):
     # Remove default loguru handler
     logger.remove()
 
-    # Choose formatter based on environment
-    formatter = json_formatter if json_logs else console_formatter
+    if json_logs:
+        # For JSON logging, use loguru's built-in serialize feature
+        # Configure a patcher to add trace and request context
+        def add_context(record):
+            """Add trace and request context to log record."""
+            # Add trace context
+            trace_ctx = get_trace_context()
+            record["extra"].update(trace_ctx)
 
-    # Add new handler with structured logging
-    logger.add(
-        sys.stderr,
-        format=formatter,
-        level=log_level,
-        colorize=not json_logs,  # Only colorize in console mode
-        backtrace=True,
-        diagnose=True,
-    )
+            # Add request context
+            request_ctx = get_request_context()
+            record["extra"].update(request_ctx)
+
+        # Configure logger with patcher
+        logger.configure(patcher=add_context)
+
+        # Add handler with JSON serialization
+        logger.add(
+            sys.stderr,
+            format="{message}",
+            level=log_level,
+            serialize=True,  # Output as JSON
+            backtrace=True,
+            diagnose=True,
+        )
+    else:
+        # For console logging, use human-readable format
+        console_format = (
+            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+            "<level>{level: <8}</level> | "
+            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+            "<level>{message}</level>"
+        )
+
+        logger.add(
+            sys.stderr,
+            format=console_format,
+            level=log_level,
+            colorize=True,
+            backtrace=True,
+            diagnose=True,
+        )
 
     # Store logger configuration on app
     app.logger_configured = True
@@ -344,9 +275,7 @@ def log_database_operation(
     )
 
 
-def log_cache_operation(
-    operation: str, key: str, hit: bool | None = None, **context
-):
+def log_cache_operation(operation: str, key: str, hit: bool | None = None, **context):
     """
     Log a cache operation.
 
