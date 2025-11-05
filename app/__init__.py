@@ -2,7 +2,6 @@
 import os
 
 from flask import Flask
-from loguru import logger
 
 from config import Config
 
@@ -12,9 +11,28 @@ from .extensions import db
 def create_app():
     app = Flask(__name__)
 
-    logger.info(f"MY IP: {os.environ.get('DB_HOST')}")
-
     app.config.from_object(Config)
+
+    # Initialize structured logging FIRST (before any other logging occurs)
+    from .utils.logging import setup_logging
+
+    # Determine log format based on environment
+    # Use JSON logs in production, human-readable in development
+    json_logs = os.getenv("FLASK_ENV", "development") == "production"
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+
+    setup_logging(app, log_level=log_level, json_logs=json_logs)
+
+    # Now we can use the logger
+    from loguru import logger
+
+    logger.info(
+        "Application starting",
+        db_host=os.environ.get("DB_HOST"),
+        environment=os.getenv("FLASK_ENV", "development"),
+        log_level=log_level,
+        json_logs=json_logs,
+    )
 
     db.init_app(app)
 
@@ -31,18 +49,34 @@ def create_app():
             # Create and store custom metrics
             if meter:
                 app.custom_metrics = create_custom_metrics(meter)
-                logger.info("Custom metrics initialized")
+                logger.info(
+                    "Custom metrics initialized", metric_count=len(app.custom_metrics)
+                )
 
             # Store tracer and meter on app for access in routes
             app.tracer = tracer
             app.meter = meter
-            logger.info("Telemetry initialization complete")
+            logger.info(
+                "Telemetry initialization complete",
+                tracing_enabled=tracer is not None,
+                metrics_enabled=meter is not None,
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize telemetry: {e}")
+            logger.error(
+                "Failed to initialize telemetry",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
             # Continue without telemetry
             app.tracer = None
             app.meter = None
             app.custom_metrics = {}
+
+    # Initialize logging middleware
+    from .middleware.logging_middleware import setup_logging_middleware
+
+    setup_logging_middleware(app)
+    logger.info("Logging middleware initialized")
 
     # register models
     # blueprints

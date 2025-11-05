@@ -1,5 +1,5 @@
+
 from celery import Celery
-from loguru import logger
 
 from app import create_app
 
@@ -10,6 +10,9 @@ def make_celery():
     """
     try:
         flask_app = create_app()
+
+        # Logger is already configured by create_app()
+        from loguru import logger
 
         celery = Celery(flask_app.import_name)
 
@@ -42,10 +45,18 @@ def make_celery():
                     return super().__call__(*args, **kwargs)
 
         celery.Task = ContextTask
-        logger.info("Celery initialized")
+        logger.info(
+            "Celery initialized",
+            broker_url=flask_app.config.get("CELERY_BROKER_URL"),
+            beat_schedule_count=len(celery.conf.beat_schedule),
+        )
         return celery
     except Exception as e:
-        logger.error(f"Failed to initialize Celery: {e}")
+        from loguru import logger
+
+        logger.error(
+            "Failed to initialize Celery", error=str(e), error_type=type(e).__name__
+        )
         raise
 
 

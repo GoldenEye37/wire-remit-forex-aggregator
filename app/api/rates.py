@@ -2,12 +2,12 @@
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
-from loguru import logger
 from opentelemetry import trace
 
 from app.decorators import require_jwt
 from app.extensions import db
 from app.models import AggregatedRate, CurrencyPair
+from app.utils.logging import log_business_event, log_error, logger
 from app.utils.metrics import with_request_metrics
 from app.utils.tracing import add_span_attributes, trace_currency_pair
 
@@ -25,21 +25,33 @@ def get_rates():
             span, {"http.route": "/api/v1.0/rates", "operation.type": "fetch_all_rates"}
         )
 
+        logger.debug("Fetching all aggregated rates", operation="fetch_all_rates")
+
         # Fetch all aggregated rates
         rates = AggregatedRate.get_latest_for_all()
+
+        rate_count = len(rates) if isinstance(rates, list) else 0
 
         add_span_attributes(
             span,
             {
-                "response.rate_count": len(rates) if isinstance(rates, list) else 0,
+                "response.rate_count": rate_count,
                 "operation.success": True,
             },
         )
 
+        logger.info(
+            "Successfully fetched all rates",
+            operation="fetch_all_rates",
+            rate_count=rate_count,
+        )
+
+        log_business_event("rates_fetched", rate_count=rate_count, fetch_type="all")
+
         response = {"success": True, "data": rates}
         return jsonify(response)
     except Exception as e:
-        logger.error(f"Error fetching rates: {e}")
+        log_error(e, "Error fetching rates", operation="fetch_all_rates")
         add_span_attributes(
             span, {"operation.success": False, "error.type": type(e).__name__}
         )
@@ -62,8 +74,20 @@ def get_rates_for_currency(base_or_target):
             },
         )
 
+        logger.debug(
+            "Fetching rates for currency",
+            operation="fetch_currency_rates",
+            currency=base_or_target,
+        )
+
         error = CurrencyPair.validate_currency(base_or_target)
         if error:
+            logger.warning(
+                "Currency validation failed",
+                operation="fetch_currency_rates",
+                currency=base_or_target,
+                validation_error=error,
+            )
             add_span_attributes(
                 span, {"operation.success": False, "error.type": "validation_error"}
             )
@@ -72,12 +96,28 @@ def get_rates_for_currency(base_or_target):
         # Fetch rates for this currency
         rates = AggregatedRate.get_latest_for_currency(base_or_target)
 
+        rate_count = len(rates) if rates else 0
+
         add_span_attributes(
             span,
             {
-                "response.rate_count": len(rates) if rates else 0,
+                "response.rate_count": rate_count,
                 "operation.success": True,
             },
+        )
+
+        logger.info(
+            "Successfully fetched currency rates",
+            operation="fetch_currency_rates",
+            currency=base_or_target,
+            rate_count=rate_count,
+        )
+
+        log_business_event(
+            "rates_fetched",
+            currency=base_or_target,
+            rate_count=rate_count,
+            fetch_type="currency",
         )
 
         if not rates:
@@ -85,7 +125,12 @@ def get_rates_for_currency(base_or_target):
 
         return jsonify(rates)
     except Exception as e:
-        logger.error(f"Error fetching rates: {e}")
+        log_error(
+            e,
+            "Error fetching rates for currency",
+            operation="fetch_currency_rates",
+            currency=base_or_target,
+        )
         add_span_attributes(
             span, {"operation.success": False, "error.type": type(e).__name__}
         )

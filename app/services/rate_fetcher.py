@@ -1,13 +1,13 @@
 import concurrent.futures
 import time
 
-from loguru import logger
 from opentelemetry import trace
 
 from app.services.providers.provider_factory import (
     PROVIDER_CLIENTS,
     get_provider_client,
 )
+from app.utils.logging import log_provider_operation, logger
 from app.utils.metrics import record_rate_fetch_metrics
 from app.utils.tracing import (
     add_span_attributes,
@@ -81,7 +81,15 @@ class RateFetcherService:
                     duration_ms = (time.time() - start_time) * 1000
 
                     if result and self._validate_rate_data(result):
-                        logger.info(f"Valid rates received from {provider_name}")
+                        rate_count = len(result.get("conversion_rates", {}))
+                        log_provider_operation(
+                            provider_name,
+                            "fetch_rates",
+                            success=True,
+                            duration_ms=duration_ms,
+                            rate_count=rate_count,
+                            base_currency=base_currency,
+                        )
                         record_rate_fetch_metrics(
                             provider_name, success=True, duration_ms=duration_ms
                         )
@@ -99,13 +107,19 @@ class RateFetcherService:
                             span,
                             {
                                 "provider.success": provider_name,
-                                "rate.count": len(result.get("conversion_rates", {})),
+                                "rate.count": rate_count,
                             },
                         )
 
                         return result
                     else:
-                        logger.warning(f"Invalid or empty rates from {provider_name}")
+                        log_provider_operation(
+                            provider_name,
+                            "fetch_rates",
+                            success=False,
+                            duration_ms=duration_ms,
+                            error_type="invalid_data",
+                        )
                         record_rate_fetch_metrics(
                             provider_name,
                             success=False,
@@ -121,7 +135,14 @@ class RateFetcherService:
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
                     error_type = type(e).__name__
-                    logger.error(f"Error fetching rates from {provider_name}: {e}")
+                    log_provider_operation(
+                        provider_name,
+                        "fetch_rates",
+                        success=False,
+                        duration_ms=duration_ms,
+                        error_type=error_type,
+                        error_message=str(e),
+                    )
                     record_rate_fetch_metrics(
                         provider_name,
                         success=False,
@@ -140,7 +161,12 @@ class RateFetcherService:
                     errors.append(str(e))
 
         # All providers failed
-        logger.error(f"All providers failed. Errors: {errors}")
+        logger.error(
+            "All providers failed",
+            provider_count=len(self.providers),
+            error_count=len(errors),
+            base_currency=base_currency,
+        )
         add_span_attributes(
             span, {"operation.success": False, "error.count": len(errors)}
         )
