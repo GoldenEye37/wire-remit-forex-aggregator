@@ -62,6 +62,15 @@ exporters:
     const_labels:
       service: forex-aggregator
 
+  # Loki exporter for logs (using native OTLP HTTP)
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+    headers:
+      # Optional: Add custom headers for routing or authentication
+      X-Scope-OrgID: "forex-aggregator"
+
   # Debug exporter for console output (replaces deprecated logging exporter)
   debug:
     verbosity: normal
@@ -96,6 +105,12 @@ service:
       receivers: [otlp, prometheus]
       processors: [memory_limiter, batch, resource]
       exporters: [prometheus, debug]
+
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [otlphttp/loki, debug]
 
   telemetry:
     logs:

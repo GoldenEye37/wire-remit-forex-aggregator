@@ -1,0 +1,139 @@
+// Grafana Alloy Configuration for WireRemit Forex Aggregator
+// Collects logs from Docker containers and sends to Loki
+
+// Discover all Docker containers
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+// Relabel Docker metadata to useful labels
+discovery.relabel "docker" {
+  targets = discovery.docker.containers.targets
+
+  // Extract container name
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+
+  // Extract container ID
+  rule {
+    source_labels = ["__meta_docker_container_id"]
+    target_label  = "container_id"
+  }
+
+  // Extract image name
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+
+  // Extract service label if present
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  // Extract project label if present
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+
+  // Set job label
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "job"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+}
+
+// Collect logs from Docker containers
+loki.source.docker "docker_logs" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.docker.output
+  forward_to       = [loki.process.parse_json.receiver]
+  refresh_interval = "5s"
+
+  // Relabel rules for log labels
+  relabel_rules = discovery.relabel.docker.rules
+}
+
+// Process and parse JSON logs
+loki.process "parse_json" {
+  // Try to parse logs as JSON
+  stage.json {
+    expressions = {
+      level      = "level",
+      logger     = "logger",
+      message    = "message",
+      timestamp  = "timestamp",
+      trace_id   = "trace_id",
+      span_id    = "span_id",
+      request_id = "request_id",
+      operation  = "operation",
+      user_id    = "user.id",
+      http_method = "http.method",
+      http_path  = "http.path",
+      http_status = "http.status",
+      duration_ms = "duration_ms",
+      error_type = "error_type",
+      provider   = "provider",
+    }
+  }
+
+  // Extract level as a label (for efficient filtering)
+  stage.labels {
+    values = {
+      level = "level",
+    }
+  }
+
+  // Add extracted fields as labels for indexing
+  stage.labels {
+    values = {
+      logger    = "logger",
+      operation = "operation",
+    }
+  }
+
+  // Output structured metadata (not indexed, but searchable)
+  stage.structured_metadata {
+    values = {
+      trace_id    = "trace_id",
+      span_id     = "span_id",
+      request_id  = "request_id",
+      user_id     = "user_id",
+      http_method = "http_method",
+      http_path   = "http_path",
+      http_status = "http_status",
+      duration_ms = "duration_ms",
+      error_type  = "error_type",
+      provider    = "provider",
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// Write logs to Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+
+    // Optional: Add tenant ID header for multi-tenancy
+    headers = {
+      "X-Scope-OrgID" = "forex-aggregator",
+    }
+  }
+
+  // External labels (applied to all logs)
+  external_labels = {
+    cluster = "local",
+    environment = "development",
+  }
+}

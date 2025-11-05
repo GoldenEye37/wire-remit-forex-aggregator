@@ -30,37 +30,48 @@ datasources:
     editable: true
     jsonData:
       tracesToLogs:
-        # Link traces to logs (if you add Loki)
-        datasourceUid: 'loki'
-        tags: ['job', 'instance', 'pod', 'namespace']
-        mappedTags: [{ key: 'service.name', value: 'service' }]
+        # Link traces to logs in Loki
+        datasourceUid: "loki"
+        tags: ["job", "container", "service"]
+        mappedTags: [{ key: "service.name", value: "service" }]
         mapTagNamesEnabled: false
-        spanStartTimeShift: '-1h'
-        spanEndTimeShift: '1h'
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
         filterByTraceID: true
         filterBySpanID: false
+        # Custom query to find logs by trace_id
+        customQuery: true
+        query: '{job="$${__tags}"} |~ "trace_id.?:?.?$${__span.traceId}"'
       tracesToMetrics:
         # Link traces to metrics
-        datasourceUid: 'prometheus'
-        tags: [{ key: 'service.name', value: 'service' }]
+        datasourceUid: "prometheus"
+        tags: [{ key: "service.name", value: "service" }]
         queries:
-          - name: 'Sample query'
-            query: 'sum(rate(traces_spanmetrics_latency_bucket{$__tags}[5m]))'
+          - name: "Sample query"
+            query: "sum(rate(traces_spanmetrics_latency_bucket{$__tags}[5m]))"
       nodeGraph:
         enabled: true
     version: 1
 
-  # Loki datasource for logs (optional - uncomment when Loki is added)
-  # - name: Loki
-  #   type: loki
-  #   access: proxy
-  #   url: http://loki:3100
-  #   uid: loki
-  #   editable: true
-  #   jsonData:
-  #     derivedFields:
-  #       - datasourceUid: jaeger
-  #         matcherRegex: "trace_id=(\\w+)"
-  #         name: TraceID
-  #         url: '$${__value.raw}'
-  #   version: 1
+  # Loki datasource for logs
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    uid: loki
+    editable: true
+    jsonData:
+      maxLines: 1000
+      # Derived fields for trace-to-log correlation
+      derivedFields:
+        - datasourceUid: jaeger
+          matcherRegex: '"trace_id":"?([0-9a-fA-F]+)"?'
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: "View Trace"
+        - datasourceUid: jaeger
+          matcherRegex: "trace_id=([0-9a-fA-F]+)"
+          name: TraceID
+          url: "$${__value.raw}"
+          urlDisplayLabel: "View Trace"
+    version: 1
