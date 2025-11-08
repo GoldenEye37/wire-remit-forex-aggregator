@@ -31,95 +31,95 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
 
-  # # Celery Worker
-  # celery-worker:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #     args:
-  #       BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
-  #       VCS_REF: ${VCS_REF:-$(git rev-parse --short HEAD)}
-  #       VERSION: ${VERSION:-latest}
-  #   container_name: wiremit-celery-worker
-  #   command: ["celery", "-A", "app.celery", "worker", "--loglevel=info", "--concurrency=4"]
-  #   environment:
-  #     - FLASK_ENV=development
-  #     - REDIS_URL=redis://redis:6379/0
-  #     - DATABASE_URL=postgresql://postgres:password@postgres:5432/forex_db
-  #     - CELERY_BROKER_URL=redis://redis:6379/0
-  #     - CELERY_RESULT_BACKEND=redis://redis:6379/0
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-  #     - OTEL_SERVICE_NAME=celery-worker
-  #     - OTEL_RESOURCE_ATTRIBUTES=service.version=${VERSION:-latest}
-  #   depends_on:
-  #     - redis
-  #     - postgres
-  #     - otel-collector
-  #   networks:
-  #     - forex-network
-  #   volumes:
-  #     - ./logs:/app/logs
-  #   restart: unless-stopped
+  # Celery Worker
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
+        VCS_REF: ${VCS_REF:-$(git rev-parse --short HEAD)}
+        VERSION: ${VERSION:-latest}
+    container_name: wiremit-celery-worker
+    command:
+      [
+        "celery",
+        "-A",
+        "tasks.celery_app",
+        "worker",
+        "--loglevel=info",
+        "--concurrency=4",
+      ]
+    environment:
+      - FLASK_ENV=development
+      - LOG_FORMAT=json
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/forex_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=celery-worker
+      - OTEL_RESOURCE_ATTRIBUTES=service.version=${VERSION:-latest},environment=development,cluster=local
+    depends_on:
+      - redis
+      - postgres
+      - otel-collector
+    networks:
+      - forex-network
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A tasks.celery_app inspect ping -d celery@$$HOSTNAME",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  # # Celery Beat (Scheduler)
-  # celery-beat:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #     args:
-  #       BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
-  #       VCS_REF: ${VCS_REF:-$(git rev-parse --short HEAD)}
-  #       VERSION: ${VERSION:-latest}
-  #   container_name: wiremit-celery-beat
-  #   command: ["celery", "-A", "app.celery", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
-  #   environment:
-  #     - FLASK_ENV=development
-  #     - REDIS_URL=redis://redis:6379/0
-  #     - DATABASE_URL=postgresql://postgres:password@postgres:5432/forex_db
-  #     - CELERY_BROKER_URL=redis://redis:6379/0
-  #     - CELERY_RESULT_BACKEND=redis://redis:6379/0
-  #     - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-  #     - OTEL_SERVICE_NAME=celery-beat
-  #     - OTEL_RESOURCE_ATTRIBUTES=service.version=${VERSION:-latest}
-  #   depends_on:
-  #     - redis
-  #     - postgres
-  #     - otel-collector
-  #   networks:
-  #     - forex-network
-  #   volumes:
-  #     - ./logs:/app/logs
-  #     - celery_beat_data:/tmp
-  #   restart: unless-stopped
-
-  # # Celery Flower (Web UI for monitoring)
-  # celery-flower:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #     args:
-  #       BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
-  #       VCS_REF: ${VCS_REF:-$(git rev-parse --short HEAD)}
-  #       VERSION: ${VERSION:-latest}
-  #   container_name: wiremit-celery-flower
-  #   command: ["celery", "-A", "app.celery", "flower", "--host=0.0.0.0", "--port=5555"]
-  #   ports:
-  #     - "5555:5555"
-  #   environment:
-  #     - FLASK_ENV=development
-  #     - REDIS_URL=redis://redis:6379/0
-  #     - DATABASE_URL=postgresql://postgres:password@postgres:5432/forex_db
-  #     - CELERY_BROKER_URL=redis://redis:6379/0
-  #     - CELERY_RESULT_BACKEND=redis://redis:6379/0
-  #   depends_on:
-  #     - redis
-  #     - postgres
-  #     - celery-worker
-  #   networks:
-  #     - forex-network
-  #   volumes:
-  #     - ./logs:/app/logs
-  #   restart: unless-stopped
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
+        VCS_REF: ${VCS_REF:-$(git rev-parse --short HEAD)}
+        VERSION: ${VERSION:-latest}
+    container_name: wiremit-celery-beat
+    command:
+      [
+        "celery",
+        "-A",
+        "tasks.celery_app",
+        "beat",
+        "--loglevel=info",
+        "--schedule=/tmp/celerybeat-schedule",
+      ]
+    environment:
+      - FLASK_ENV=development
+      - LOG_FORMAT=json
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/forex_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=celery-beat
+      - OTEL_RESOURCE_ATTRIBUTES=service.version=${VERSION:-latest},environment=development,cluster=local
+    depends_on:
+      - redis
+      - postgres
+      - otel-collector
+      - celery-worker
+    networks:
+      - forex-network
+    volumes:
+      - ./logs:/app/logs
+      - celery_beat_data:/tmp
+    restart: unless-stopped
 
   # Redis for caching
   redis:
@@ -263,6 +263,7 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  celery_beat_data:
 
 networks:
   forex-network:
