@@ -19,7 +19,7 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
-from flask import current_app
+from flask import current_app, has_app_context
 from opentelemetry import trace
 from opentelemetry.trace import Span, Status, StatusCode
 
@@ -31,7 +31,11 @@ def get_tracer() -> trace.Tracer:
     Returns:
         Tracer instance from Flask app or default tracer
     """
-    if hasattr(current_app, "tracer"):
+    if (
+        has_app_context()
+        and hasattr(current_app, "tracer")
+        and current_app.tracer is not None
+    ):
         return current_app.tracer
     return trace.get_tracer(__name__)
 
@@ -57,7 +61,7 @@ def add_span_attributes(span: Span, attributes: dict[str, Any]) -> None:
             span.set_attribute(key, value)
         except Exception as e:
             # Don't let attribute setting failures break the application
-            if hasattr(current_app, "logger"):
+            if has_app_context() and hasattr(current_app, "logger"):
                 current_app.logger.debug(f"Failed to set span attribute {key}: {e}")
 
 

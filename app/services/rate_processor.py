@@ -12,6 +12,8 @@ from loguru import logger
 from opentelemetry import trace
 from sqlalchemy import func
 
+# from app.extenstion import db
+from app.extensions import db
 from app.models import AggregatedRate, CurrencyPair, Rate
 from app.services.rate_fetcher import RateFetcherService
 from app.utils.metrics import record_aggregation_metrics
@@ -21,9 +23,6 @@ from app.utils.tracing import (
     trace_currency_pair,
     with_span,
 )
-
-# from app.extenstion import db
-from run import db
 
 
 class RateProcessorService:
@@ -57,10 +56,15 @@ class RateProcessorService:
         add_span_event(span, "processing_currency_layer_api")
         currency_layer_results = self._process_currency_layer_client(currencies)
 
-        provider_results.append(
-            {"source": "exchange_rates_api", "rate_data": exchange_rates_api_results},
-            {"source": "currency_layer", "rate_data": currency_layer_results},
-            # {"source": "polygon", "rate_data": polygon_results},
+        provider_results.extend(
+            [
+                {
+                    "source": "exchange_rates_api",
+                    "rate_data": exchange_rates_api_results,
+                },
+                {"source": "currency_layer", "rate_data": currency_layer_results},
+                # {"source": "polygon", "rate_data": polygon_results},
+            ]
         )
 
         add_span_attributes(span, {"provider.count": len(provider_results)})

@@ -1,5 +1,7 @@
 # Polygon API client
-from flask import current_app as app
+import os
+
+from flask import current_app, has_app_context
 from loguru import logger
 from polygon import RESTClient
 
@@ -8,7 +10,15 @@ from .base_provider import BaseProviderClient
 
 class PolygonClient(BaseProviderClient):
     def __init__(self):
-        self.client = RESTClient(app.config["POLYGON_API_KEY"])
+        # Get API key from environment or Flask config if available
+        if has_app_context():
+            api_key = current_app.config.get("POLYGON_API_KEY") or os.getenv(
+                "POLYGON_API_KEY"
+            )
+        else:
+            # No app context available, get from environment
+            api_key = os.getenv("POLYGON_API_KEY")
+        self.client = RESTClient(api_key)
 
     def get_rates(
         self,
@@ -57,9 +67,14 @@ class PolygonClient(BaseProviderClient):
         """
         try:
             # Use a common currency pair for health check
-            response = self.client.get_real_time_currency_conversion("USD", "EUR", amount=1, precision=2)
+            response = self.client.get_real_time_currency_conversion(
+                "USD", "EUR", amount=1, precision=2
+            )
             if response.get("status") == "success":
-                return {"status": True, "details": "Polygon API reachable and returned success."}
+                return {
+                    "status": True,
+                    "details": "Polygon API reachable and returned success.",
+                }
             return {"status": False, "details": f"Polygon API error: {response}"}
         except Exception as e:
             logger.error(f"Polygon API health check failed: {e}")

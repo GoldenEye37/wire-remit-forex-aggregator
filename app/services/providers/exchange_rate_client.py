@@ -1,6 +1,8 @@
 # Exchange Rate API Client
+import os
+
 import requests
-from flask import current_app as app
+from flask import current_app, has_app_context
 from loguru import logger  # Fixed typo
 
 from .base_provider import BaseProviderClient
@@ -10,7 +12,14 @@ class ExchangeRateClient(BaseProviderClient):
     BASE_URL = "https://v6.exchangerate-api.com/v6"
 
     def __init__(self):
-        self.api_key = app.config["EXCHANGE_RATE_API_KEY"]
+        # Get API key from environment or Flask config if available
+        if has_app_context():
+            self.api_key = current_app.config.get("EXCHANGE_RATE_API_KEY") or os.getenv(
+                "EXCHANGE_RATE_API_KEY"
+            )
+        else:
+            # No app context available, get from environment
+            self.api_key = os.getenv("EXCHANGE_RATE_API_KEY")
 
     def get_rates(self, base_currency: str) -> dict:
         """
@@ -52,7 +61,10 @@ class ExchangeRateClient(BaseProviderClient):
             response.raise_for_status()
             data = response.json()
             if data.get("result") == "success":
-                return {"status": True, "details": "ExchangeRate API reachable and returned success."}
+                return {
+                    "status": True,
+                    "details": "ExchangeRate API reachable and returned success.",
+                }
             return {"status": False, "details": f"ExchangeRate API error: {data}"}
         except Exception as e:
             logger.error(f"ExchangeRate API health check failed: {e}")
