@@ -1,27 +1,27 @@
-
 from celery import Celery
 
 from app import create_app
 
+# Create Flask app at module level so it's available to all tasks
+flask_app = create_app()
 
-def make_celery():
+
+def make_celery(app):
     """
-    Create and configure a Celery instance.
+    Create and configure a Celery instance with Flask app context.
     """
     try:
-        flask_app = create_app()
-
         # Logger is already configured by create_app()
         from loguru import logger
 
-        celery = Celery(flask_app.import_name)
+        celery = Celery(app.import_name)
 
         celery.config_from_object(
             {
-                "broker_url": flask_app.config.get(
+                "broker_url": app.config.get(
                     "CELERY_BROKER_URL", "redis://localhost:6379/0"
                 ),
-                "result_backend": flask_app.config.get(
+                "result_backend": app.config.get(
                     "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
                 ),
                 "task_serializer": "json",
@@ -31,24 +31,28 @@ def make_celery():
                 "enable_utc": True,
                 "include": ["tasks.rate_refresh"],
                 "beat_schedule": {
-                    "refresh-rates-every-hour": {
+                    "refresh-rates-every-5min": {
                         "task": "tasks.rate_refresh.refresh_rates",
-                        "schedule": 3600.0,  # Every hour
+                        "schedule": 300.0,  # Every 5 minutes for testing
                     },
                 },
             }
         )
 
         class ContextTask(celery.Task):
+            """Custom task class that ensures Flask app context is available."""
+
             def __call__(self, *args, **kwargs):
-                with flask_app.app_context():
+                with app.app_context():
                     return super().__call__(*args, **kwargs)
 
         celery.Task = ContextTask
+
         logger.info(
             "Celery initialized",
-            broker_url=flask_app.config.get("CELERY_BROKER_URL"),
+            broker_url=app.config.get("CELERY_BROKER_URL"),
             beat_schedule_count=len(celery.conf.beat_schedule),
+            service_name=app.config.get("OTEL_SERVICE_NAME"),
         )
         return celery
     except Exception as e:
@@ -60,4 +64,4 @@ def make_celery():
         raise
 
 
-celery = make_celery()
+celery = make_celery(flask_app)

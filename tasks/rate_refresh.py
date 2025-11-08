@@ -2,7 +2,6 @@ import time
 
 from loguru import logger
 
-from app.services.rate_processor import RateProcessorService
 from tasks.celery_app import celery
 
 
@@ -16,12 +15,24 @@ def refresh_rates(self):
     task_id = self.request.id
 
     logger.info(
-        "Starting rate refresh task", task_id=task_id, task_name="refresh_rates"
+        "Starting rate refresh task", 
+        task_id=task_id, 
+        task_name="refresh_rates",
+        operation="rate_refresh"
     )
 
     try:
-        processor = RateProcessorService()
-        result = processor.process_rates_for_currencies()
+        # Import inside the task to avoid module loading issues
+        from app import create_app
+        
+        # Create Flask app context
+        app = create_app()
+        with app.app_context():
+            # Import service inside app context
+            from app.services.rate_processor import RateProcessorService
+            
+            processor = RateProcessorService()
+            result = processor.process_rates_for_currencies()
 
         duration_ms = (time.time() - start_time) * 1000
 
@@ -29,12 +40,15 @@ def refresh_rates(self):
             "Completed rate refresh task",
             task_id=task_id,
             task_name="refresh_rates",
+            operation="rate_refresh",
             duration_ms=round(duration_ms, 2),
             status="success",
+            success=True,
             result=result,
         )
 
         return result or {"status": "success"}
+        
     except Exception as e:
         duration_ms = (time.time() - start_time) * 1000
 
@@ -42,9 +56,13 @@ def refresh_rates(self):
             "Rate refresh task failed",
             task_id=task_id,
             task_name="refresh_rates",
+            operation="rate_refresh",
             duration_ms=round(duration_ms, 2),
             error=str(e),
             error_type=type(e).__name__,
+            error_message=str(e),
+            status="failed",
+            success=False,
             exc_info=True,
         )
         raise
